@@ -94,7 +94,7 @@ function uiInterponerRecurso() {
     if (!causa.recursos) causa.recursos = [];
     causa.recursos.push({ id: generarID(), tipo, fecha, tribunal, observaciones: obs, estado: 'Interpuesto' });
     causa.instancia = 'Segunda';
-    guardarDB();
+    if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
     registrarEvento(`Recurso de ${tipo} interpuesto — ${causa.caratula}`);
     crearAlerta({ causaId, tipo: 'procesal', mensaje: `Recurso de ${tipo} interpuesto. Pendiente resolución.`, prioridad: 'alta' });
     ['rec-fecha', 'rec-tribunal', 'rec-obs'].forEach(id => document.getElementById(id).value = '');
@@ -165,7 +165,7 @@ function uiAsociarJuris(jurisId) {
         asociarJurisprudenciaACausa(_jurisCausaTarget, jurisId);
     }
     evaluarImpactoJurisprudencial(_jurisCausaTarget);
-    guardarDB();
+    if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
     registrarEvento(`Jurisprudencia ${jurisId} modificada en causa ${causa.caratula}`);
     uiBuscarJuris(document.getElementById('modal-juris-input').value);
 }
@@ -190,7 +190,7 @@ function uiDuplicarCausa(causaId) {
         etapasProcesales: generarEtapas(original.tipoProcedimiento)
     };
     DB.causas.push(copia);
-    guardarDB();
+    if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
     registrarEvento(`Causa duplicada: ${original.caratula} → ${copia.caratula}`);
     renderAll();
     cerrarModal('modal-detalle');
@@ -202,7 +202,7 @@ function archivarAlerta(alertaId) {
     const alerta = DB.alertas.find(a => a.id === alertaId);
     if (!alerta) return;
     alerta.estado = 'archivada';
-    guardarDB(); renderCalendario(); renderAll();
+    if (typeof markAppDirty === "function") markAppDirty(); guardarDB(); renderCalendario(); renderAll();
 }
 
 // renderCalendario() — única def activa abajo
@@ -755,7 +755,7 @@ async function gaGuardarDoc() {
             gaStagedFiles = [];
             document.getElementById('file-input').value = '';
             document.getElementById('ga-form').classList.remove('visible');
-            save();
+            if (typeof markAppDirty === "function") markAppDirty(); save();
             renderAll();
             gaRenderFolders();
             gaRenderDocs();
@@ -791,7 +791,7 @@ function gaCancelForm() {
 function gaDeleteDoc(id) {
     showConfirm("Eliminar Documento", "¿Eliminar este documento del índice?", () => {
         DB.documentos = DB.documentos.filter(d => d.id !== id);
-        save(); renderAll();
+        if (typeof markAppDirty === "function") markAppDirty(); save(); renderAll();
         gaRenderFolders(); gaRenderDocs(); gaRenderTimeline(); gaRenderPlazoAlerts();
     }, 'danger');
 }

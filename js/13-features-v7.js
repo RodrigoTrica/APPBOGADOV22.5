@@ -226,7 +226,7 @@
                 icono: plantilla.icon
             });
 
-            save();
+            if (typeof markAppDirty === "function") markAppDirty(); save();
             renderAll();
             showSuccess(`✓ Causa creada con ${nueva.etapasProcesales.length} etapas y ${plantilla.alertas.length} alertas automáticas.`);
         }
@@ -262,7 +262,7 @@
             DB.notificaciones.unshift(notif);
             // Mantener máximo 100
             if (DB.notificaciones.length > 100) DB.notificaciones.length = 100;
-            save();
+            if (typeof markAppDirty === "function") markAppDirty(); save();
             _notifActualizarBadge();
         }
 
@@ -279,7 +279,7 @@
         /** Marca todas las notificaciones como leídas. */
         function notifMarcarTodasLeidas() {
             DB.notificaciones.forEach(n => n.leida = true);
-            save();
+            if (typeof markAppDirty === "function") markAppDirty(); save();
             _notifActualizarBadge();
             notifRender();
         }
@@ -287,7 +287,7 @@
         /** Elimina una notificación por ID. */
         function notifEliminar(id) {
             DB.notificaciones = DB.notificaciones.filter(n => n.id !== id);
-            save();
+            if (typeof markAppDirty === "function") markAppDirty(); save();
             _notifActualizarBadge();
             notifRender();
         }
@@ -295,7 +295,7 @@
         /** Limpia todo el historial de notificaciones. */
         function notifLimpiarTodo() {
             DB.notificaciones = [];
-            save();
+            if (typeof markAppDirty === "function") markAppDirty(); save();
             _notifActualizarBadge();
             notifRender();
         }
@@ -309,7 +309,7 @@
             if (!abierto) {
                 // Marcar como leídas al abrir
                 DB.notificaciones.forEach(n => n.leida = true);
-                save();
+                if (typeof markAppDirty === "function") markAppDirty(); save();
                 _notifActualizarBadge();
                 notifRender();
                 if (overlay) overlay.classList.add('notif-overlay-open');
@@ -506,7 +506,7 @@
                 }
             }
 
-            save();
+            if (typeof markAppDirty === "function") markAppDirty(); save();
 
             // Guardar adjuntos físicamente en disco si DocFisico está activo
             if (typeof DocFisico !== 'undefined' && DocFisico.activo()) {
@@ -558,7 +558,7 @@
             if (!causa) return;
             showConfirm('Eliminar adjunto', '¿Eliminar este archivo? La acción es irreversible.', () => {
                 causa.adjuntos = causa.adjuntos.filter(a => a.id !== adjuntoId);
-                save();
+                if (typeof markAppDirty === "function") markAppDirty(); save();
                 adjuntosRender(causaId);
                 adjuntosMostrarUsoPorcentaje();
                 showSuccess('Archivo eliminado.');
@@ -787,7 +787,7 @@
                 fechaCreacion: new Date().toISOString()
             });
 
-            save();
+            if (typeof markAppDirty === "function") markAppDirty(); save();
             renderAll();
             cerrarModal('modal-accion-rapida');
             showSuccess(`✓ Alerta creada — vence en ${dias} días.`);
@@ -809,7 +809,7 @@
                 fechaCreacion: new Date()
             });
 
-            save(); renderAll();
+            if (typeof markAppDirty === "function") markAppDirty(); save(); renderAll();
             cerrarModal('modal-accion-rapida');
             showSuccess(`✓ Cliente "${nom}" creado.`);
         }
@@ -833,7 +833,7 @@
             // Actualizar total pagado
             causa.honorarios.totalPagado = (causa.honorarios.pagos || []).reduce((s, p) => s + (p.monto || 0), 0);
 
-            save(); renderAll(); renderDashboardPanel();
+            if (typeof markAppDirty === "function") markAppDirty(); save(); renderAll(); renderDashboardPanel();
             cerrarModal('modal-accion-rapida');
             showSuccess(`✓ Pago de $${monto.toLocaleString('es-CL')} registrado.`);
             notifAgregar({ tipo: 'pago', titulo: 'Pago registrado', cuerpo: `$${monto.toLocaleString('es-CL')} — ${desc || causa.caratula}`, causaId });

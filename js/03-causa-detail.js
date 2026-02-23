@@ -322,7 +322,7 @@
                 cuaderno: 'Principal', etapa: '', folio: '—'
             });
             causa.fechaUltimaActividad = new Date();
-            guardarDB();
+            if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
             registrarEvento(`Movimiento agregado: ${nombre} — ${causa.caratula}`);
             abrirDetalleCausa(causaId);
             setTimeout(() => dcCambiarTab('movimientos', causaId), 50);
@@ -400,7 +400,7 @@
                 texto, prioridad: prio, done: false,
                 fecha: new Date().toLocaleDateString('es-CL')
             });
-            guardarDB();
+            if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
             dcRenderTareas(causaId);
             // Actualizar badge del tab
             const badge = document.querySelector('#dctab-tareas .dc-tab-badge');
@@ -416,7 +416,7 @@
             const t = causa.tareas.find(t => t.id === tareaId);
             if (!t) return;
             t.done = !t.done;
-            guardarDB();
+            if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
             dcRenderTareas(causaId);
         }
 
@@ -424,7 +424,7 @@
             const causa = DB.causas.find(c => c.id === causaId);
             if (!causa) return;
             causa.tareas = causa.tareas.filter(t => t.id !== tareaId);
-            guardarDB();
+            if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
             dcRenderTareas(causaId);
         }
 
@@ -589,7 +589,7 @@
                         email: vals['mig-email'].trim(),
                         telefono: vals['mig-tel'].trim()
                     };
-                    guardarDB();
+                    if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
                     registrarEvento(`Parte actualizada: ${rolLabel} — ${causa.caratula}`);
                     abrirDetalleCausa(causaId);
                     setTimeout(() => dcCambiarTab('partes', causaId), 50);
@@ -608,7 +608,7 @@
                 ],
                 onOk: (vals) => {
                     causa.juzgado = vals['mig-juzgado'].trim();
-                    guardarDB();
+                    if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
                     abrirDetalleCausa(causaId);
                     setTimeout(() => dcCambiarTab('partes', causaId), 50);
                 }
@@ -630,7 +630,7 @@
             if (etapa.completada) {
                 if (!confirm('¿Desmarcar esta etapa?')) return;
                 etapa.completada = false; etapa.fecha = null;
-                recalcularAvance(causa); guardarDB();
+                recalcularAvance(causa); if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
                 registrarEvento(`Etapa desmarcada: ${etapa.nombre} — ${causa.caratula}`);
                 abrirDetalleCausa(causaId); return;
             }
@@ -640,7 +640,7 @@
             etapa.completada = true;
             etapa.fecha = new Date();
             causa.fechaUltimaActividad = new Date();
-            recalcularAvance(causa); guardarDB();
+            recalcularAvance(causa); if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
             registrarEvento(`Etapa completada: ${etapa.nombre} — ${causa.caratula}`);
             renderAll();
             abrirDetalleCausa(causaId);
@@ -653,7 +653,7 @@
             const pendientes = causa.etapasProcesales?.filter(e => !e.completada).length || 0;
             if (pendientes > 0 && !confirm(`Hay ${pendientes} etapas pendientes. ¿Cerrar igual?`)) return;
             causa.estadoGeneral = 'Finalizada';
-            guardarDB(); registrarEvento(`Causa cerrada: ${causa.caratula}`);
+            if (typeof markAppDirty === "function") markAppDirty(); guardarDB(); registrarEvento(`Causa cerrada: ${causa.caratula}`);
             renderAll(); abrirDetalleCausa(causaId);
         }
 
@@ -661,7 +661,7 @@
             const causa = DB.causas.find(c => c.id === causaId);
             if (!causa) return;
             causa.estadoGeneral = 'En tramitación'; causa.instancia = 'Segunda';
-            guardarDB(); registrarEvento(`Causa reactivada (2ª instancia): ${causa.caratula}`);
+            if (typeof markAppDirty === "function") markAppDirty(); guardarDB(); registrarEvento(`Causa reactivada (2ª instancia): ${causa.caratula}`);
             renderAll(); abrirDetalleCausa(causaId);
         }
 

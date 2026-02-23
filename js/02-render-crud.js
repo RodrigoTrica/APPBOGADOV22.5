@@ -232,14 +232,14 @@
             const fb = document.querySelector('.rut-feedback');
             if (fb) fb.textContent = '';
             registrarEvento(`Cliente registrado: ${nom}${rut ? ' · RUT: ' + rut : ''}`);
-            save(); renderAll();
+            if (typeof markAppDirty === "function") markAppDirty(); save(); renderAll();
         }
 
         function deleteClient(id) {
             showConfirm("¿Eliminar cliente?", "Se eliminará el registro del cliente y su historial. Esta acción es irreversible.", () => {
                 DB.clientes = DB.clientes.filter(c => c.id !== id);
                 registrarEvento(`Cliente eliminado: ID ${id}`);
-                save(); renderAll();
+                if (typeof markAppDirty === "function") markAppDirty(); save(); renderAll();
                 showSuccess("Cliente eliminado correctamente.");
             }, 'danger');
         }
@@ -274,7 +274,7 @@
                 DB.causas.push(nueva);
                 evaluarRiesgoIntegral(nueva.id);
                 registrarEvento(`Causa creada desde cliente: ${nueva.caratula}`);
-                save(); renderAll();
+                if (typeof markAppDirty === "function") markAppDirty(); save(); renderAll();
                 showSuccess("Causa creada exitosamente.");
             });
         }
@@ -288,7 +288,7 @@
                     }
                 });
                 registrarEvento(`Causa archivada: ID ${id}`);
-                save(); renderAll();
+                if (typeof markAppDirty === "function") markAppDirty(); save(); renderAll();
                 showInfo("Causa archivada.");
             });
         }
@@ -303,13 +303,13 @@
             document.getElementById('ju-rol').value = '';
             document.getElementById('ju-ext').value = '';
             registrarEvento(`Jurisprudencia indexada: ${rol}`);
-            save(); renderAll();
+            if (typeof markAppDirty === "function") markAppDirty(); save(); renderAll();
         }
 
         function deleteJuris(id) {
             if (!confirm("¿Eliminar este registro?")) return;
             DB.jurisprudencia = DB.jurisprudencia.filter(j => j.id !== id);
-            save(); renderAll();
+            if (typeof markAppDirty === "function") markAppDirty(); save(); renderAll();
         }
 
         // ─── Calculadora de Plazos ────────────────────────────────────────
@@ -527,7 +527,7 @@
         function uiDeleteJurisAvanzada(id) {
             if (!confirm("¿Eliminar esta jurisprudencia?")) return;
             DB.jurisprudencia = DB.jurisprudencia.filter(j => j.id !== id);
-            guardarDB(); uiRenderJurisprudenciaAvanzada(); renderAll();
+            if (typeof markAppDirty === "function") markAppDirty(); guardarDB(); uiRenderJurisprudenciaAvanzada(); renderAll();
         }
 
         // (Código de inicialización movido a init() — ver sección final del script)

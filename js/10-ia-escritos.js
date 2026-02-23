@@ -316,7 +316,7 @@ ${texto.substring(0, 8000)}`;
                     importadoConIA: true,
                     ext: datos.temaCentral || ''
                 });
-                guardarDB();
+                if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
                 uiRenderJurisprudenciaAvanzada();
                 renderAll();
 

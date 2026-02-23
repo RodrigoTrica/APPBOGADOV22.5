@@ -393,7 +393,7 @@ ${context}`;
                 showSuccess(`Plantilla "${nombre}" creada.`);
             }
 
-            save();
+            if (typeof markAppDirty === "function") markAppDirty(); save();
             cerrarModal('modal-plantilla-texto');
             ptRender();
         }
@@ -404,7 +404,7 @@ ${context}`;
             if (!p) return;
             showConfirm('Eliminar Plantilla', `¿Eliminar "${p.nombre}"?`, () => {
                 DB.plantillasTexto = DB.plantillasTexto.filter(x => x.id !== id);
-                save();
+                if (typeof markAppDirty === "function") markAppDirty(); save();
                 ptRender();
                 showSuccess('Plantilla eliminada.');
             }, 'danger');
@@ -425,7 +425,7 @@ ${context}`;
             if (hechosEl) hechosEl.value = texto;
 
             p.usosCount = (p.usosCount || 0) + 1;
-            save();
+            if (typeof markAppDirty === "function") markAppDirty(); save();
 
             // Si hay causa seleccionada, navegar al tab
             tab('escritos');
@@ -1101,7 +1101,7 @@ ${context}`;
                 tipo: 'manual',
                 autor: DB.usuarioActual || 'admin'
             });
-            save();
+            if (typeof markAppDirty === "function") markAppDirty(); save();
         }
 
         /** Inicia el cronómetro para una causa. */
@@ -1159,7 +1159,7 @@ ${context}`;
         /** Elimina un registro de timesheet. */
         function tiempoEliminarRegistro(id) {
             DB.timesheet = (DB.timesheet || []).filter(t => t.id !== id);
-            save();
+            if (typeof markAppDirty === "function") markAppDirty(); save();
             tiempoRender();
         }
 

@@ -126,7 +126,7 @@
             };
             DB.historialEscritos.unshift(entrada);
             if (DB.historialEscritos.length > 200) DB.historialEscritos.length = 200;
-            save();
+            if (typeof markAppDirty === "function") markAppDirty(); save();
             return entrada.id;
         }
 
@@ -139,7 +139,7 @@
          */
         function historialEliminarEscritoData(id) {
             DB.historialEscritos = DB.historialEscritos.filter(e => e.id !== id);
-            save();
+            if (typeof markAppDirty === "function") markAppDirty(); save();
         }
 
         /**
@@ -154,7 +154,7 @@
             const e = DB.historialEscritos.find(x => x.id === id);
             if (!e) return null;
             e.favorito = !e.favorito;
-            save();
+            if (typeof markAppDirty === "function") markAppDirty(); save();
             return e.favorito;
         }
 
@@ -237,7 +237,7 @@
             });
 
             entrada.texto = textoNuevo;
-            save();
+            if (typeof markAppDirty === "function") markAppDirty(); save();
             return numV;
         }
 
@@ -358,7 +358,7 @@
                 usosCount:         0,
             };
             DB.plantillasEscritos.push(nueva);
-            save();
+            if (typeof markAppDirty === "function") markAppDirty(); save();
             return nueva.id;
         }
 
@@ -375,7 +375,7 @@
             const p = DB.plantillasEscritos.find(x => x.id === id);
             if (!p) return false;
             Object.assign(p, datos, { fechaModificacion: new Date().toISOString() });
-            save();
+            if (typeof markAppDirty === "function") markAppDirty(); save();
             return true;
         }
 
@@ -388,7 +388,7 @@
          */
         function plantillaEliminarData(id) {
             DB.plantillasEscritos = DB.plantillasEscritos.filter(x => x.id !== id);
-            save();
+            if (typeof markAppDirty === "function") markAppDirty(); save();
         }
 
         /**
@@ -414,7 +414,7 @@
             const p = DB.plantillasEscritos.find(x => x.id === id);
             if (!p) return;
             p.usosCount = (p.usosCount || 0) + 1;
-            save();
+            if (typeof markAppDirty === "function") markAppDirty(); save();
         }
 
         // ═══════════════════════════════════════════════════════════════════

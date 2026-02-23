@@ -4,6 +4,41 @@
 //   autenticación init, notificaciones, arranque de la app
 // ████████████████████████████████████████████████████████████████████
 
+// ================================
+// AUTO-GUARDADO GLOBAL
+// ================================
+let __appDirty = false;
+
+function markAppDirty() {
+    __appDirty = true;
+}
+
+function __autoSave() {
+    if (!__appDirty) return;
+    try {
+        if (typeof saveDataToDisk === 'function') {
+            saveDataToDisk();
+        } else if (window.AppStorage && typeof window.AppStorage.save === 'function') {
+            window.AppStorage.save();
+        } else if (typeof save === 'function') {
+            save();
+        } else {
+            console.warn('[AutoSave] No se encontró función de guardado.');
+            return;
+        }
+        console.log('[AutoSave] Guardado automático ejecutado.');
+        __appDirty = false;
+    } catch (err) {
+        console.error('[AutoSave] Error:', err);
+    }
+}
+
+// Guardar antes de cerrar la ventana
+window.addEventListener('beforeunload', () => {
+    __autoSave();
+});
+
+
 // ── Helper seguro de localStorage ────────────────────────────────────
 // Protege contra QuotaExceededError (almacenamiento lleno) y
 // SecurityError (Safari en modo de navegación privada).
@@ -1008,3 +1043,6 @@ async function iaTestKey() {
 // ── Función central de llamada a Gemini ───────────────────────────
 // Usa el modelo seleccionado por el usuario como primario.
 // Si falla con 429 o 404, hace fallback por el catálogo en orden.
+
+// ── Activar auto-guardado cada 30 segundos ────────────────────────
+setInterval(__autoSave, 30000);

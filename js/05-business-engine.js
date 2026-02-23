@@ -44,7 +44,7 @@ function recalcularAvance(causa) {
     const completadas = causa.etapasProcesales?.filter(e => e.completada).length || 0;
     causa.porcentajeAvance = total === 0 ? 0 : Math.round((completadas / total) * 100);
     if (causa.porcentajeAvance === 100) causa.estadoGeneral = "Finalizada";
-    guardarDB();
+    if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
 }
 
 // ─── CREAR CAUSA (sistema extendido) ─────────────────
@@ -85,7 +85,7 @@ function crearCausa(data) {
         revisadoHoy: false
     };
     DB.causas.push(nueva);
-    guardarDB();
+    if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
     renderDashboard();
 }
 
@@ -128,7 +128,7 @@ function resetDiario() {
     if (DB.configuracion.ultimoResetDiario !== hoyStr) {
         DB.causas.forEach(c => { c.revisadoHoy = false; });
         DB.configuracion.ultimoResetDiario = hoyStr;
-        guardarDB();
+        if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
     }
 }
 
@@ -166,7 +166,7 @@ function crearAlerta(data) {
         prioridad: data.prioridad || "media",
         estado: "activa"
     });
-    guardarDB();
+    if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
 }
 
 function evaluarAlertas() {
@@ -182,7 +182,7 @@ function evaluarAlertas() {
             }
         });
     });
-    guardarDB();
+    if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
 }
 
 function generarEventosCalendario() {
@@ -217,7 +217,7 @@ function crearProspecto(data) {
         complejidad: data.complejidad, probabilidadCierre: data.probabilidadCierre || 50,
         estado: "Nuevo", honorarioPropuesto: data.honorarioPropuesto || 0, fechaCreacion: hoy()
     });
-    guardarDB(); renderProspectos();
+    if (typeof markAppDirty === "function") markAppDirty(); guardarDB(); renderProspectos();
 }
 
 function renderProspectos() {
@@ -271,14 +271,14 @@ function convertirACliente(prospectoId) {
     DB.clientes.push(nuevoCliente);
     crearCausa({ clienteId: nuevoCliente.id, caratula: prospecto.nombre, tipoProcedimiento: "Ordinario Civil", rama: prospecto.materia });
     prospecto.estado = "Aceptado";
-    guardarDB(); renderProspectos();
+    if (typeof markAppDirty === "function") markAppDirty(); guardarDB(); renderProspectos();
 }
 
 function asignarHonorarios(causaId, montoBase) {
     const causa = DB.causas.find(c => c.id === causaId);
     if (!causa) return;
     causa.honorarios = { montoBase, pagos: [], saldoPendiente: montoBase };
-    guardarDB();
+    if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
 }
 
 function registrarPago(causaId, monto) {
@@ -286,7 +286,7 @@ function registrarPago(causaId, monto) {
     if (!causa?.honorarios) return;
     causa.honorarios.pagos.push({ monto, fecha: hoy() });
     causa.honorarios.saldoPendiente = Math.max(0, causa.honorarios.saldoPendiente - monto);
-    guardarDB();
+    if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
 }
 
 function calcularIndicadoresEconomicos() {
@@ -336,7 +336,7 @@ function crearJurisprudencia(data) {
         tendencia: data.tendencia, nivelRelevancia: data.nivelRelevancia,
         palabrasClave: data.palabrasClave || [], asociadaACausas: [], vectorEmbedding: null
     });
-    guardarDB();
+    if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
 }
 
 function buscarJurisprudencia(texto) {
@@ -354,7 +354,7 @@ function asociarJurisprudenciaACausa(causaId, jurisId) {
     if (!juris.asociadaACausas.includes(causaId)) juris.asociadaACausas.push(causaId);
     if (!causa.jurisprudenciaAsociada) causa.jurisprudenciaAsociada = [];
     if (!causa.jurisprudenciaAsociada.includes(jurisId)) causa.jurisprudenciaAsociada.push(jurisId);
-    guardarDB();
+    if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
 }
 
 function sugerirJurisprudenciaParaCausa(causa) {
@@ -367,7 +367,7 @@ function evaluarImpactoJurisprudencial(causaId) {
     const desfavorables = causa.jurisprudenciaAsociada.filter(jId => DB.jurisprudencia.find(x => x.id === jId)?.tendencia === "Desfavorable").length;
     if (!causa.riesgo) causa.riesgo = {};
     causa.riesgo.jurisprudencial = desfavorables > 0 ? "Alto" : "Moderado";
-    guardarDB();
+    if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
 }
 
 // ─── BLOQUE 5: PANEL EJECUTIVO AVANZADO ──────────────
@@ -443,7 +443,7 @@ function agregarDocumento(causaId, data) {
     if (etapa) etapa.documentoAsociado = nuevoDoc.id;
     causa.documentos.push(nuevoDoc);
     causa.fechaUltimaActividad = hoy();
-    guardarDB(); recalcularAvance(causa); actualizarSistema();
+    if (typeof markAppDirty === "function") markAppDirty(); guardarDB(); recalcularAvance(causa); actualizarSistema();
     registrarEvento("Documento agregado a causa " + causaId);
 }
 
@@ -469,14 +469,14 @@ function cerrarCausa(causaId) {
     if (!causa) return;
     if (causa.etapasProcesales?.some(e => !e.completada)) { showError("No se puede cerrar. Existen etapas pendientes."); return; }
     causa.estadoGeneral = "Finalizada";
-    guardarDB(); renderDashboard();
+    if (typeof markAppDirty === "function") markAppDirty(); guardarDB(); renderDashboard();
 }
 
 function reactivarCausa(causaId) {
     const causa = DB.causas.find(c => c.id === causaId);
     if (!causa) return;
     causa.estadoGeneral = "En tramitación"; causa.instancia = "Segunda";
-    guardarDB(); renderDashboard();
+    if (typeof markAppDirty === "function") markAppDirty(); guardarDB(); renderDashboard();
 }
 
 function generarLineaTiempo(causaId) {
@@ -499,7 +499,7 @@ function evaluarRiesgoIntegral(causaId) {
     if (causa.honorarios?.saldoPendiente > 0) riesgo.economico = "Medio";
     if (!causa.jurisprudenciaAsociada?.length) riesgo.estrategico = "Medio";
     causa.riesgo = riesgo;
-    guardarDB();
+    if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
 }
 
 function generarRecomendaciones(causaId) {
@@ -532,19 +532,19 @@ function renderAnalisisEstrategico(causaId) {
 
 function actualizarMotorEstrategico() {
     DB.causas.forEach(causa => evaluarRiesgoIntegral(causa.id));
-    guardarDB();
+    if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
 }
 
 // ─── BLOQUE 8: SEGURIDAD ESTRUCTURAL ─────────────────
 function registrarIntentoLogin(usuario, exito) {
     DB.intentosLogin.push({ usuario, exito, fecha: hoy() });
-    guardarDB();
+    if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
 }
 
 function registrarEvento(descripcion) {
     DB.bitacora.push({ descripcion, fecha: hoy() });
     if (DB.bitacora.length > 500) DB.bitacora = DB.bitacora.slice(-500); // límite
-    guardarDB();
+    if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
 }
 
 function verificarEdicionPermitida(causaId) {
