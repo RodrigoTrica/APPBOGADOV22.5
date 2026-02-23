@@ -18,18 +18,12 @@
       "output": "dist"
     },
     "files": [
-      "main.js",
-      "preload.js",
-      "index.html",
-      "css/**/*",
-      "js/**/*",
-      "assets/**/*",
-      "node_modules/**/*",
-      "!node_modules/.cache/**",
+      "**/*",
       "!dist/**",
       "!backup/**",
       "!datos/**",
-      "!**/*.map"
+      "!**/*.map",
+      "!node_modules/.cache/**"
     ],
     "win": {
       "target": [
@@ -68,7 +62,7 @@
   "devDependencies": {
     "cross-env": "^7.0.3",
     "electron": "^40.6.0",
-    "electron-builder": "^24.0.0"
+    "electron-builder": "^26.8.1"
   },
   "keywords": [
     "legal",
@@ -76,5 +70,8 @@
     "gestion"
   ],
   "author": "AppBogado",
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "overrides": {
+    "semver": "^7.5.4"
+  }
 }
