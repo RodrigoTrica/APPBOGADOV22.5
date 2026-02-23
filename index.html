@@ -5,10 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AppBogado | Gestión Legal Inteligente</title>
-    <link
-        href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=DM+Mono:wght@400;500;600&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="assets/fonts/fonts.css">
+    <link rel="stylesheet" href="assets/fa/css/all.min.css">
     <link rel="stylesheet" href="css/styles.css">
 </head>
 
@@ -220,7 +218,7 @@
                     <div class="topbar-avatar" id="topbar-avatar">A</div>
                     <div class="topbar-info">
                         <div class="topbar-name" id="topbar-name">Administrador</div>
-                        <div class="topbar-email" id="topbar-email"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="0d6c696064634d6c7d7d6f626a6c6962236e6260">[email&#160;protected]</a></div>
+                        <div class="topbar-email" id="topbar-email">admin@appbogado.com</div>
                     </div>
                 </div>
             </div>
@@ -1826,7 +1824,6 @@
             </div>
         </section>
 
-        </div>
 
     <section id="admin-usuarios" class="tabs">
         <div class="page-header">
@@ -2045,7 +2042,6 @@
                 </div>
             </div>
         </div>
-</div><!-- /#app ── cierre correcto: engloba topbar + todas las secciones -->
     </main>
 
     <!-- ══ MODAL GENÉRICO DE INPUT (reemplaza todos los prompt() nativos) ══ -->
@@ -2220,7 +2216,7 @@
          Orden de carga: dependencias primero, app core al final
     ════════════════════════════════════════════════════ -->
     <!-- v13: EventBus + RenderBus + StorageGuard (debe ir PRIMERO) -->
-    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="js/00-disk-storage.js"></script>
+    <script src="js/00-disk-storage.js"></script>
     <script src="js/00b-config.js"></script>
     <script src="js/00-eventbus.js"></script>
     <script src="js/01-db-auth.js"></script>
@@ -2266,6 +2262,250 @@
         </div>
     </div>
 
+
+    <input type="file" id="adjunto-file-input" multiple accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt,.xlsx,.pptx"
+        style="display:none;" onchange="adjuntosOnFileSelect(this)">
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- MODALS & PANELS — FEATURES v7                                       -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+
+    <!-- PANEL LATERAL DE NOTIFICACIONES -->
+    <div id="notif-panel" class="notif-panel">
+        <div class="notif-panel-header">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <i class="fas fa-bell" style="color:var(--cyan,#0891b2);"></i>
+                <span style="font-weight:700;font-size:15px;">Notificaciones</span>
+            </div>
+            <div style="display:flex;gap:6px;">
+                <button class="btn btn-xs" onclick="notifMarcarTodasLeidas()" title="Marcar todas como leídas">
+                    <i class="fas fa-check-double"></i>
+                </button>
+                <button class="btn btn-xs btn-danger-outline" onclick="notifLimpiarTodo()" title="Limpiar todo">
+                    <i class="fas fa-trash"></i>
+                </button>
+                <button class="btn-icon" onclick="notifTogglePanel()" style="padding:4px 8px;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        <div class="notif-panel-body">
+            <div id="notif-lista"></div>
+        </div>
+    </div>
+    <div id="notif-overlay" class="notif-overlay" onclick="notifTogglePanel()"></div>
+
+    <!-- MODAL SELECCIÓN PLANTILLA DE CAUSA -->
+    <div class="modal-overlay" id="modal-plantilla-causa"
+        onclick="if(event.target===this)cerrarModal('modal-plantilla-causa')">
+        <div class="modal-content" style="max-width:700px;width:95%;max-height:85vh;overflow-y:auto;">
+            <div class="modal-header">
+                <div>
+                    <h3><i class="fas fa-sitemap" style="color:var(--cyan,#0891b2);"></i> Crear Causa con Plantilla</h3>
+                    <p style="font-size:12px;color:var(--text-3,#64748b);margin-top:2px;">Cliente: <strong
+                            id="mpc-cliente-nombre"></strong></p>
+                </div>
+                <button class="btn-icon" onclick="cerrarModal('modal-plantilla-causa')"><i
+                        class="fas fa-times"></i></button>
+            </div>
+            <input type="hidden" id="mpc-cliente-id">
+            <div class="modal-body">
+                <p style="font-size:13px;color:var(--text-2,#475569);margin-bottom:16px;">
+                    Seleccione el procedimiento. Se crearán las etapas procesales y alertas de plazos típicas
+                    automáticamente.
+                </p>
+                <div id="mpc-grid" class="mpc-grid"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL PERFIL EXPANDIDO CLIENTE ↔ CAUSAS -->
+    <div class="modal-overlay" id="modal-perfil-cliente"
+        onclick="if(event.target===this)cerrarModal('modal-perfil-cliente')">
+        <div class="modal-content" style="max-width:760px;width:95%;max-height:88vh;overflow-y:auto;">
+            <div class="modal-header">
+                <div style="display:flex;align-items:center;gap:14px;">
+                    <div class="mpc-avatar">
+                        <i class="fas fa-user" style="font-size:1.4rem;color:var(--text-3,#64748b);"></i>
+                    </div>
+                    <div>
+                        <h3 id="mpc-header-nombre" style="margin:0;font-size:17px;"></h3>
+                        <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
+                            <span id="mpc-header-rut"
+                                style="font-size:12px;color:var(--text-3,#64748b);font-family:monospace;"></span>
+                            <span id="mpc-header-estado" class="badge"></span>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn-icon" onclick="cerrarModal('modal-perfil-cliente')"><i
+                        class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <!-- KPIs del cliente -->
+                <div class="mpc-kpis">
+                    <div class="mpc-kpi-item">
+                        <span class="mpc-kpi-val" id="mpc-kpi-causas">0</span>
+                        <span class="mpc-kpi-lbl">Causas</span>
+                    </div>
+                    <div class="mpc-kpi-item">
+                        <span class="mpc-kpi-val" id="mpc-kpi-pagado">$0</span>
+                        <span class="mpc-kpi-lbl">Pagado</span>
+                    </div>
+                    <div class="mpc-kpi-item">
+                        <span class="mpc-kpi-val" id="mpc-kpi-pendiente">$0</span>
+                        <span class="mpc-kpi-lbl">Pendiente</span>
+                    </div>
+                    <div class="mpc-kpi-item">
+                        <span class="mpc-kpi-val" id="mpc-kpi-docs">0</span>
+                        <span class="mpc-kpi-lbl">Adjuntos</span>
+                    </div>
+                </div>
+                <!-- Causas relacionadas -->
+                <div style="display:flex;justify-content:space-between;align-items:center;margin:20px 0 10px;">
+                    <h4 style="margin:0;font-size:14px;font-weight:700;">Causas Relacionadas</h4>
+                    <button class="btn btn-xs btn-p" id="mpc-btn-nueva-causa">
+                        <i class="fas fa-plus"></i> Nueva Causa
+                    </button>
+                </div>
+                <div id="mpc-causas-lista"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL ACCIÓN RÁPIDA (KPI Dashboard) -->
+    <div class="modal-overlay" id="modal-accion-rapida"
+        onclick="if(event.target===this)cerrarModal('modal-accion-rapida')">
+        <div class="modal-content" style="max-width:400px;width:95%;">
+            <div class="modal-header">
+                <h3 id="mar-titulo" style="font-size:15px;margin:0;">Acción Rápida</h3>
+                <button class="btn-icon" onclick="cerrarModal('modal-accion-rapida')"><i
+                        class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body" id="mar-body" style="padding:16px;"></div>
+        </div>
+    </div>
+
+    <!-- MODAL ADJUNTOS (para causa específica) -->
+    <div class="modal-overlay" id="modal-adjuntos" onclick="if(event.target===this)cerrarModal('modal-adjuntos')">
+        <div class="modal-content" style="max-width:560px;width:95%;">
+            <div class="modal-header">
+                <h3><i class="fas fa-paperclip" style="color:var(--cyan,#0891b2);"></i> Archivos Adjuntos</h3>
+                <button class="btn-icon" onclick="cerrarModal('modal-adjuntos')"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body" style="padding:16px;">
+                <!-- Barra de uso -->
+                <div style="margin-bottom:14px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                        <span style="font-size:12px;font-weight:600;color:var(--text-2,#475569);">Almacenamiento</span>
+                        <span id="adjuntos-uso-label"
+                            style="font-size:11px;color:var(--text-3,#64748b);font-family:monospace;">0 MB / 50
+                            MB</span>
+                    </div>
+                    <div style="height:6px;background:var(--bg-2,#f1f5f9);border-radius:3px;overflow:hidden;">
+                        <div id="adjuntos-barra-uso"
+                            style="height:100%;width:0%;border-radius:3px;transition:width 0.4s;background:#0d7a5f;">
+                        </div>
+                    </div>
+                </div>
+                <!-- Botón subir -->
+                <button class="btn btn-p" onclick="adjuntosAbrir(document.getElementById('adjunto-causa-id').value)"
+                    style="width:100%;margin-bottom:14px;">
+                    <i class="fas fa-upload"></i> Adjuntar Archivo (&lt;2 MB · PDF, Imágenes, Word)
+                </button>
+                <input type="hidden" id="adjunto-causa-id">
+                <!-- Lista -->
+                <div id="adjuntos-lista"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- MODALS — FEATURES v8                                                 -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+
+    <!-- MODAL PLANTILLA DE TEXTO (CRUD) -->
+    <div class="modal-overlay" id="modal-plantilla-texto"
+        onclick="if(event.target===this)cerrarModal('modal-plantilla-texto')">
+        <div class="modal-content" style="max-width:720px;width:95%;max-height:90vh;overflow-y:auto;">
+            <div class="modal-header">
+                <h3 id="pt-modal-titulo"><i class="fas fa-file-alt" style="color:var(--cyan);"></i> Nueva Plantilla de
+                    Texto</h3>
+                <button class="btn-icon" onclick="cerrarModal('modal-plantilla-texto')"><i
+                        class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body" style="padding:20px;display:flex;flex-direction:column;gap:14px;">
+
+                <div style="display:grid;grid-template-columns:1fr 160px;gap:12px;">
+                    <div>
+                        <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Nombre <span
+                                style="color:var(--danger)">*</span></label>
+                        <input type="text" id="pt-nombre" placeholder="Ej: Demanda ejecutiva honorarios">
+                    </div>
+                    <div>
+                        <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Categoría</label>
+                        <select id="pt-categoria">
+                            <option value="general">General</option>
+                            <option value="demanda">Demanda</option>
+                            <option value="recurso">Recurso</option>
+                            <option value="notificacion">Notificación</option>
+                            <option value="contrato">Contrato</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Descripción
+                        breve</label>
+                    <input type="text" id="pt-descripcion" placeholder="Para qué sirve esta plantilla">
+                </div>
+
+                <div>
+                    <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">
+                        Cuerpo de la Plantilla <span style="color:var(--danger)">*</span>
+                        <span style="font-size:11px;font-weight:400;color:var(--text-3);margin-left:8px;">Use
+                            {{variable}} para datos dinámicos</span>
+                    </label>
+                    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;">
+                        <button class="pt-var-btn" onclick="ptInsertarVariable('cliente')">{{cliente}}</button>
+                        <button class="pt-var-btn" onclick="ptInsertarVariable('causa')">{{causa}}</button>
+                        <button class="pt-var-btn" onclick="ptInsertarVariable('tribunal')">{{tribunal}}</button>
+                        <button class="pt-var-btn" onclick="ptInsertarVariable('fecha_hoy')">{{fecha_hoy}}</button>
+                        <button class="pt-var-btn" onclick="ptInsertarVariable('rit')">{{rit}}</button>
+                        <button class="pt-var-btn"
+                            onclick="ptInsertarVariable('etapa_actual')">{{etapa_actual}}</button>
+                        <button class="pt-var-btn" onclick="ptInsertarVariable('abogado')">{{abogado}}</button>
+                        <button class="pt-var-btn" onclick="ptInsertarVariable('despacho')">{{despacho}}</button>
+                    </div>
+                    <textarea id="pt-cuerpo" rows="10"
+                        placeholder="Escribe el cuerpo de la plantilla aquí. Usa {{cliente}}, {{causa}}, {{fecha_hoy}}, etc."
+                        style="font-family:'DM Mono',monospace;font-size:12px;resize:vertical;"></textarea>
+                </div>
+
+                <!-- Previsualización -->
+                <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+                    <div
+                        style="background:var(--bg-2);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+                        <span style="font-size:12px;font-weight:600;color:var(--text-2);">Vista previa con
+                            variables</span>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <select id="pt-preview-causa" onchange="ptPrevisualizar()"
+                                style="font-size:11px;padding:4px 8px;">
+                                <option value="">Sin causa</option>
+                            </select>
+                            <button class="btn btn-xs" onclick="ptPrevisualizar()"><i class="fas fa-eye"></i>
+                                Previsualizar</button>
+                        </div>
+                    </div>
+                    <pre id="pt-preview-resultado"
+                        style="padding:14px;font-family:'DM Mono',monospace;font-size:11px;white-space:pre-wrap;max-height:160px;overflow-y:auto;color:var(--text-2);background:var(--bg-card);margin:0;"></pre>
+                </div>
+            </div>
+            <div class="modal-footer" style="display:flex;gap:10px;justify-content:flex-end;padding:14px 20px;">
+                <button class="btn" onclick="cerrarModal('modal-plantilla-texto')">Cancelar</button>
+                <button class="btn btn-p" onclick="ptGuardar()"><i class="fas fa-save"></i> Guardar Plantilla</button>
+            </div>
+        </div>
+    </div>
 
     <!-- ════════════════════════════════════════════════════════
          LOGIN CANVAS — Partículas + Mesh de nodos + Balanza wireframe
@@ -2515,251 +2755,6 @@
             }
         })();
     </script>
-
-
-
-    <input type="file" id="adjunto-file-input" multiple accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt,.xlsx,.pptx"
-        style="display:none;" onchange="adjuntosOnFileSelect(this)">
-
-    <!-- ═══════════════════════════════════════════════════════════════════ -->
-    <!-- MODALS & PANELS — FEATURES v7                                       -->
-    <!-- ═══════════════════════════════════════════════════════════════════ -->
-
-    <!-- PANEL LATERAL DE NOTIFICACIONES -->
-    <div id="notif-panel" class="notif-panel">
-        <div class="notif-panel-header">
-            <div style="display:flex;align-items:center;gap:8px;">
-                <i class="fas fa-bell" style="color:var(--cyan,#0891b2);"></i>
-                <span style="font-weight:700;font-size:15px;">Notificaciones</span>
-            </div>
-            <div style="display:flex;gap:6px;">
-                <button class="btn btn-xs" onclick="notifMarcarTodasLeidas()" title="Marcar todas como leídas">
-                    <i class="fas fa-check-double"></i>
-                </button>
-                <button class="btn btn-xs btn-danger-outline" onclick="notifLimpiarTodo()" title="Limpiar todo">
-                    <i class="fas fa-trash"></i>
-                </button>
-                <button class="btn-icon" onclick="notifTogglePanel()" style="padding:4px 8px;">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-        </div>
-        <div class="notif-panel-body">
-            <div id="notif-lista"></div>
-        </div>
-    </div>
-    <div id="notif-overlay" class="notif-overlay" onclick="notifTogglePanel()"></div>
-
-    <!-- MODAL SELECCIÓN PLANTILLA DE CAUSA -->
-    <div class="modal-overlay" id="modal-plantilla-causa"
-        onclick="if(event.target===this)cerrarModal('modal-plantilla-causa')">
-        <div class="modal-content" style="max-width:700px;width:95%;max-height:85vh;overflow-y:auto;">
-            <div class="modal-header">
-                <div>
-                    <h3><i class="fas fa-sitemap" style="color:var(--cyan,#0891b2);"></i> Crear Causa con Plantilla</h3>
-                    <p style="font-size:12px;color:var(--text-3,#64748b);margin-top:2px;">Cliente: <strong
-                            id="mpc-cliente-nombre"></strong></p>
-                </div>
-                <button class="btn-icon" onclick="cerrarModal('modal-plantilla-causa')"><i
-                        class="fas fa-times"></i></button>
-            </div>
-            <input type="hidden" id="mpc-cliente-id">
-            <div class="modal-body">
-                <p style="font-size:13px;color:var(--text-2,#475569);margin-bottom:16px;">
-                    Seleccione el procedimiento. Se crearán las etapas procesales y alertas de plazos típicas
-                    automáticamente.
-                </p>
-                <div id="mpc-grid" class="mpc-grid"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- MODAL PERFIL EXPANDIDO CLIENTE ↔ CAUSAS -->
-    <div class="modal-overlay" id="modal-perfil-cliente"
-        onclick="if(event.target===this)cerrarModal('modal-perfil-cliente')">
-        <div class="modal-content" style="max-width:760px;width:95%;max-height:88vh;overflow-y:auto;">
-            <div class="modal-header">
-                <div style="display:flex;align-items:center;gap:14px;">
-                    <div class="mpc-avatar">
-                        <i class="fas fa-user" style="font-size:1.4rem;color:var(--text-3,#64748b);"></i>
-                    </div>
-                    <div>
-                        <h3 id="mpc-header-nombre" style="margin:0;font-size:17px;"></h3>
-                        <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
-                            <span id="mpc-header-rut"
-                                style="font-size:12px;color:var(--text-3,#64748b);font-family:monospace;"></span>
-                            <span id="mpc-header-estado" class="badge"></span>
-                        </div>
-                    </div>
-                </div>
-                <button class="btn-icon" onclick="cerrarModal('modal-perfil-cliente')"><i
-                        class="fas fa-times"></i></button>
-            </div>
-            <div class="modal-body">
-                <!-- KPIs del cliente -->
-                <div class="mpc-kpis">
-                    <div class="mpc-kpi-item">
-                        <span class="mpc-kpi-val" id="mpc-kpi-causas">0</span>
-                        <span class="mpc-kpi-lbl">Causas</span>
-                    </div>
-                    <div class="mpc-kpi-item">
-                        <span class="mpc-kpi-val" id="mpc-kpi-pagado">$0</span>
-                        <span class="mpc-kpi-lbl">Pagado</span>
-                    </div>
-                    <div class="mpc-kpi-item">
-                        <span class="mpc-kpi-val" id="mpc-kpi-pendiente">$0</span>
-                        <span class="mpc-kpi-lbl">Pendiente</span>
-                    </div>
-                    <div class="mpc-kpi-item">
-                        <span class="mpc-kpi-val" id="mpc-kpi-docs">0</span>
-                        <span class="mpc-kpi-lbl">Adjuntos</span>
-                    </div>
-                </div>
-                <!-- Causas relacionadas -->
-                <div style="display:flex;justify-content:space-between;align-items:center;margin:20px 0 10px;">
-                    <h4 style="margin:0;font-size:14px;font-weight:700;">Causas Relacionadas</h4>
-                    <button class="btn btn-xs btn-p" id="mpc-btn-nueva-causa">
-                        <i class="fas fa-plus"></i> Nueva Causa
-                    </button>
-                </div>
-                <div id="mpc-causas-lista"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- MODAL ACCIÓN RÁPIDA (KPI Dashboard) -->
-    <div class="modal-overlay" id="modal-accion-rapida"
-        onclick="if(event.target===this)cerrarModal('modal-accion-rapida')">
-        <div class="modal-content" style="max-width:400px;width:95%;">
-            <div class="modal-header">
-                <h3 id="mar-titulo" style="font-size:15px;margin:0;">Acción Rápida</h3>
-                <button class="btn-icon" onclick="cerrarModal('modal-accion-rapida')"><i
-                        class="fas fa-times"></i></button>
-            </div>
-            <div class="modal-body" id="mar-body" style="padding:16px;"></div>
-        </div>
-    </div>
-
-    <!-- MODAL ADJUNTOS (para causa específica) -->
-    <div class="modal-overlay" id="modal-adjuntos" onclick="if(event.target===this)cerrarModal('modal-adjuntos')">
-        <div class="modal-content" style="max-width:560px;width:95%;">
-            <div class="modal-header">
-                <h3><i class="fas fa-paperclip" style="color:var(--cyan,#0891b2);"></i> Archivos Adjuntos</h3>
-                <button class="btn-icon" onclick="cerrarModal('modal-adjuntos')"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="modal-body" style="padding:16px;">
-                <!-- Barra de uso -->
-                <div style="margin-bottom:14px;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                        <span style="font-size:12px;font-weight:600;color:var(--text-2,#475569);">Almacenamiento</span>
-                        <span id="adjuntos-uso-label"
-                            style="font-size:11px;color:var(--text-3,#64748b);font-family:monospace;">0 MB / 50
-                            MB</span>
-                    </div>
-                    <div style="height:6px;background:var(--bg-2,#f1f5f9);border-radius:3px;overflow:hidden;">
-                        <div id="adjuntos-barra-uso"
-                            style="height:100%;width:0%;border-radius:3px;transition:width 0.4s;background:#0d7a5f;">
-                        </div>
-                    </div>
-                </div>
-                <!-- Botón subir -->
-                <button class="btn btn-p" onclick="adjuntosAbrir(document.getElementById('adjunto-causa-id').value)"
-                    style="width:100%;margin-bottom:14px;">
-                    <i class="fas fa-upload"></i> Adjuntar Archivo (&lt;2 MB · PDF, Imágenes, Word)
-                </button>
-                <input type="hidden" id="adjunto-causa-id">
-                <!-- Lista -->
-                <div id="adjuntos-lista"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════════════════════ -->
-    <!-- MODALS — FEATURES v8                                                 -->
-    <!-- ═══════════════════════════════════════════════════════════════════ -->
-
-    <!-- MODAL PLANTILLA DE TEXTO (CRUD) -->
-    <div class="modal-overlay" id="modal-plantilla-texto"
-        onclick="if(event.target===this)cerrarModal('modal-plantilla-texto')">
-        <div class="modal-content" style="max-width:720px;width:95%;max-height:90vh;overflow-y:auto;">
-            <div class="modal-header">
-                <h3 id="pt-modal-titulo"><i class="fas fa-file-alt" style="color:var(--cyan);"></i> Nueva Plantilla de
-                    Texto</h3>
-                <button class="btn-icon" onclick="cerrarModal('modal-plantilla-texto')"><i
-                        class="fas fa-times"></i></button>
-            </div>
-            <div class="modal-body" style="padding:20px;display:flex;flex-direction:column;gap:14px;">
-
-                <div style="display:grid;grid-template-columns:1fr 160px;gap:12px;">
-                    <div>
-                        <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Nombre <span
-                                style="color:var(--danger)">*</span></label>
-                        <input type="text" id="pt-nombre" placeholder="Ej: Demanda ejecutiva honorarios">
-                    </div>
-                    <div>
-                        <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Categoría</label>
-                        <select id="pt-categoria">
-                            <option value="general">General</option>
-                            <option value="demanda">Demanda</option>
-                            <option value="recurso">Recurso</option>
-                            <option value="notificacion">Notificación</option>
-                            <option value="contrato">Contrato</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div>
-                    <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Descripción
-                        breve</label>
-                    <input type="text" id="pt-descripcion" placeholder="Para qué sirve esta plantilla">
-                </div>
-
-                <div>
-                    <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">
-                        Cuerpo de la Plantilla <span style="color:var(--danger)">*</span>
-                        <span style="font-size:11px;font-weight:400;color:var(--text-3);margin-left:8px;">Use
-                            {{variable}} para datos dinámicos</span>
-                    </label>
-                    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;">
-                        <button class="pt-var-btn" onclick="ptInsertarVariable('cliente')">{{cliente}}</button>
-                        <button class="pt-var-btn" onclick="ptInsertarVariable('causa')">{{causa}}</button>
-                        <button class="pt-var-btn" onclick="ptInsertarVariable('tribunal')">{{tribunal}}</button>
-                        <button class="pt-var-btn" onclick="ptInsertarVariable('fecha_hoy')">{{fecha_hoy}}</button>
-                        <button class="pt-var-btn" onclick="ptInsertarVariable('rit')">{{rit}}</button>
-                        <button class="pt-var-btn"
-                            onclick="ptInsertarVariable('etapa_actual')">{{etapa_actual}}</button>
-                        <button class="pt-var-btn" onclick="ptInsertarVariable('abogado')">{{abogado}}</button>
-                        <button class="pt-var-btn" onclick="ptInsertarVariable('despacho')">{{despacho}}</button>
-                    </div>
-                    <textarea id="pt-cuerpo" rows="10"
-                        placeholder="Escribe el cuerpo de la plantilla aquí. Usa {{cliente}}, {{causa}}, {{fecha_hoy}}, etc."
-                        style="font-family:'DM Mono',monospace;font-size:12px;resize:vertical;"></textarea>
-                </div>
-
-                <!-- Previsualización -->
-                <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;">
-                    <div
-                        style="background:var(--bg-2);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
-                        <span style="font-size:12px;font-weight:600;color:var(--text-2);">Vista previa con
-                            variables</span>
-                        <div style="display:flex;gap:8px;align-items:center;">
-                            <select id="pt-preview-causa" onchange="ptPrevisualizar()"
-                                style="font-size:11px;padding:4px 8px;">
-                                <option value="">Sin causa</option>
-                            </select>
-                            <button class="btn btn-xs" onclick="ptPrevisualizar()"><i class="fas fa-eye"></i>
-                                Previsualizar</button>
-                        </div>
-                    </div>
-                    <pre id="pt-preview-resultado"
-                        style="padding:14px;font-family:'DM Mono',monospace;font-size:11px;white-space:pre-wrap;max-height:160px;overflow-y:auto;color:var(--text-2);background:var(--bg-card);margin:0;"></pre>
-                </div>
-            </div>
-            <div class="modal-footer" style="display:flex;gap:10px;justify-content:flex-end;padding:14px 20px;">
-                <button class="btn" onclick="cerrarModal('modal-plantilla-texto')">Cancelar</button>
-                <button class="btn btn-p" onclick="ptGuardar()"><i class="fas fa-save"></i> Guardar Plantilla</button>
-            </div>
-        </div>
 
 </body>
 </html>
