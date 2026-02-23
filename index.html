@@ -5,10 +5,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AppBogado | Gestión Legal Inteligente</title>
-    <link
-        href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=DM+Mono:wght@400;500;600&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* DM Sans — fuente local */
+        @font-face { font-family: 'DM Sans'; src: url('assets/fonts/DMSans-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+        @font-face { font-family: 'DM Sans'; src: url('assets/fonts/DMSans-Medium.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+        @font-face { font-family: 'DM Sans'; src: url('assets/fonts/DMSans-Bold.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+        /* DM Mono — fuente local */
+        @font-face { font-family: 'DM Mono'; src: url('assets/fonts/DMMono-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+        @font-face { font-family: 'DM Mono'; src: url('assets/fonts/DMMono-Medium.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+    </style>
+    <link rel="stylesheet" href="assets/fa/css/all.min.css">
     <link rel="stylesheet" href="css/styles.css">
 </head>
 
@@ -220,7 +226,7 @@
                     <div class="topbar-avatar" id="topbar-avatar">A</div>
                     <div class="topbar-info">
                         <div class="topbar-name" id="topbar-name">Administrador</div>
-                        <div class="topbar-email" id="topbar-email">admin@appbogado.com</div>
+                        <div class="topbar-email" id="topbar-email"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="d3b2b7bebabd93b2a3a3b1bcb4b2b7bcfdb0bcbe">[email&#160;protected]</a></div>
                     </div>
                 </div>
             </div>
@@ -2220,7 +2226,7 @@
          Orden de carga: dependencias primero, app core al final
     ════════════════════════════════════════════════════ -->
     <!-- v13: EventBus + RenderBus + StorageGuard (debe ir PRIMERO) -->
-    <script src="js/00-disk-storage.js"></script>
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="js/00-disk-storage.js"></script>
     <script src="js/00b-config.js"></script>
     <script src="js/00-eventbus.js"></script>
     <script src="js/01-db-auth.js"></script>
@@ -2812,15 +2818,4 @@ window.addEventListener('DOMContentLoaded', () => {
         if (badge && window.DiskStorage) {
             if (window.DiskStorage.isElectron) {
                 badge.textContent = '🔒 Disco';
-                badge.parentElement.title = 'Datos cifrados en disco — modo Electron';
-                badge.parentElement.style.color = '#16a34a';
-            } else {
-                badge.textContent = 'Navegador';
-            }
-        }
-    }, 1000);
-});
-</script>
-</body>
-
-</html>
+                badge.parentElement.title = 'Datos cifrado
