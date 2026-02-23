@@ -180,7 +180,12 @@ function toggleTheme() {
     const current = document.documentElement.getAttribute('data-theme') || 'light';
     const next = current === 'light' ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', next);
-    _lsSet('APPBOGADO_THEME', next);
+    // Guardar via AppConfig (usa DiskStorage cifrado en Electron, localStorage fuera)
+    if (typeof AppConfig !== 'undefined') {
+        AppConfig.set('tema', next);
+    } else {
+        _lsSet('APPBOGADO_THEME', next);
+    }
     _updateThemeIcon(next);
     _applyDashboardTheme(next);
     showInfo(`Tema ${next === 'dark' ? 'oscuro' : 'claro'} activado`);
@@ -194,8 +199,10 @@ function _updateThemeIcon(theme) {
 }
 
 async function init() {
-    // Inicializar tema
-    const savedTheme = _lsGet('APPBOGADO_THEME') || 'light';
+    // Inicializar tema — leer desde AppConfig si está disponible
+    const savedTheme = (typeof AppConfig !== 'undefined' && AppConfig.get('tema'))
+        || _lsGet('APPBOGADO_THEME')
+        || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
     _updateThemeIcon(savedTheme);
     _applyDashboardTheme(savedTheme);
@@ -204,7 +211,7 @@ async function init() {
     actualizarMotorEstrategico();
     evaluarAlertas();
     uiRenderJurisprudenciaAvanzada();
-    await loginRenderUsuarios();
+    // loginRenderUsuarios() ya fue llamado en el IIFE de 01-db-auth.js — no duplicar
     renderAll();
     updateCalcHitos();
     const calcDate = document.getElementById('calc-date');

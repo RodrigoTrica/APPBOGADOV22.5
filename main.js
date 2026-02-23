@@ -281,16 +281,17 @@ function crearVentana() {
     mainWindow.loadFile('index.html');
 
     // ── CSP via cabecera HTTP (más robusto que el meta tag) ──────────────────
-    // NUEVO: Bloquea scripts externos, eval(), inline scripts no autorizados.
-    // Ajusta si necesitas cargar fuentes o íconos externos (ver recomendación
-    // de fuentes locales en el informe).
+    // NOTA: 'unsafe-inline' en script-src es necesario mientras existan scripts
+    // inline en index.html. DEUDA TÉCNICA: mover todos los bloques <script>
+    // inline a archivos .js externos y eliminar 'unsafe-inline' para activar
+    // protección XSS completa. Ver informe de seguridad, punto 7.
     mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
         callback({
             responseHeaders: {
                 ...details.responseHeaders,
                 'Content-Security-Policy': [
                     "default-src 'self';" +
-                    "script-src 'self' 'unsafe-inline';" +   // inline necesario por ahora hasta separar JS
+                    "script-src 'self' 'unsafe-inline';" +   // TODO: eliminar 'unsafe-inline' al separar JS a archivos externos
                     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com;" +
                     "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com;" +
                     "img-src 'self' data: blob:;" +

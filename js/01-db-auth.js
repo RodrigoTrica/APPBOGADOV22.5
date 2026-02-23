@@ -306,11 +306,17 @@
             function iniciar() {
                 crearSnapshot('inicio-sesion');   // snapshot al entrar
                 _timer = setInterval(() => crearSnapshot('auto'), BACKUP_INTERVAL_MS);
-                window.addEventListener('beforeunload', () => crearSnapshot('cierre'));
+                // Guardar referencia para poder removerla en detener()
+                AutoBackup._unloadHandler = () => crearSnapshot('cierre');
+                window.addEventListener('beforeunload', AutoBackup._unloadHandler);
             }
 
             function detener() {
                 if (_timer) { clearInterval(_timer); _timer = null; }
+                if (AutoBackup._unloadHandler) {
+                    window.removeEventListener('beforeunload', AutoBackup._unloadHandler);
+                    AutoBackup._unloadHandler = null;
+                }
             }
 
             function ultimoBackup() { return _lastSaved; }
@@ -506,8 +512,6 @@
             document.getElementById('pw').value = '';
         }
 
-        const AUTH_HASH = '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9'; // admin123
-
         /**
          * Valida las credenciales del formulario de login y abre la app si son correctas.
          * Implementa bloqueo por intentos fallidos (MAX_INTENTOS / BLOQUEO_MS).
@@ -516,11 +520,16 @@
          */
         async function auth() {
             const ahora = Date.now();
+            const btnReset = document.getElementById('btn-reset-bloqueo');
             if (DB.loginBloqueado.hasta && ahora < DB.loginBloqueado.hasta) {
                 const restantes = Math.ceil((DB.loginBloqueado.hasta - ahora) / 60000);
                 document.getElementById('err').innerText = `Sistema bloqueado. Intente en ${restantes} minuto(s).`;
+                // Mostrar botón de desbloqueo solo cuando hay bloqueo activo
+                if (btnReset) btnReset.style.display = 'inline';
                 return;
             }
+            // Ocultar botón si no hay bloqueo activo
+            if (btnReset) btnReset.style.display = 'none';
             const pw = document.getElementById('pw').value.trim();
             if (!pw) { document.getElementById('err').innerText = 'Ingrese su contraseña.'; return; }
 
@@ -551,17 +560,9 @@
                     save();
                 }
             } else {
-                // fallback: login legacy con clave maestra
-                const hpw = await _hash(pw);
-                if (hpw === AUTH_HASH) {
-                    _sesionUsuario = { nombre: 'Administrador', usuario: 'admin', rol: 'admin', color: '#1a3a6b' };
-                    DB.rolActual = 'admin'; DB.usuarioActual = 'admin';
-                    DB.loginBloqueado = { hasta: null, intentosFallidos: 0 };
-                    registrarIntentoLogin('admin', true); save();
-                    _abrirApp();
-                } else {
-                    document.getElementById('err').innerText = 'Contraseña incorrecta.';
-                }
+                // Sin usuario seleccionado — no permitir login
+                document.getElementById('err').innerText = 'Seleccione un usuario primero.';
+                loginVolver();
             }
         }
 
@@ -612,7 +613,21 @@
             });
         }
 
-        function resetBloqueo() {
+        async function resetBloqueo() {
+            // Requiere verificar contraseña del administrador para evitar bypass del bloqueo
+            const adminUser = Users.listar().find(u => u.rol === 'admin');
+            if (!adminUser) {
+                document.getElementById('err').innerText = 'No hay usuario administrador configurado.';
+                return;
+            }
+            const codeIngresado = prompt('Ingrese la contraseña del administrador para desbloquear:');
+            if (codeIngresado === null) return; // cancelado
+            const ok = await Users.verificar(adminUser.usuario, codeIngresado);
+            if (!ok) {
+                document.getElementById('err').innerText = 'Contraseña incorrecta. No se desbloqueó.';
+                document.getElementById('err').style.color = 'var(--danger)';
+                return;
+            }
             DB.loginBloqueado = { hasta: null, intentosFallidos: 0 };
             save();
             document.getElementById('err').innerText = '✓ Desbloqueado. Puede intentar nuevamente.';
