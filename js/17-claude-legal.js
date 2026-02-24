@@ -1,39 +1,39 @@
-        // ████████████████████████████████████████████████████████████████████
-        // JS — MÓDULO 17: CLAUDE LEGAL — INTEGRACIÓN IA JURÍDICA COMPLETA
-        //
-        // FUNCIONALIDADES:
-        //   1. Asistente flotante global (LexBot) — chat con contexto completo
-        //   2. Análisis IA de causa individual — diagnóstico + riesgo + estrategia
-        //   3. Análisis de jurisprudencia — extracción automática de holding
-        //   4. Panel IA en Estrategia Pro — análisis profundo con Claude
-        //
-        // DEPENDENCIAS: 12-ia-providers.js (iaCall, iaGetProvider, iaGetKey)
-        // ████████████████████████████████████████████████████████████████████
+// ████████████████████████████████████████████████████████████████████
+// JS — MÓDULO 17: CLAUDE LEGAL — INTEGRACIÓN IA JURÍDICA COMPLETA
+//
+// FUNCIONALIDADES:
+//   1. Asistente flotante global (LexBot) — chat con contexto completo
+//   2. Análisis IA de causa individual — diagnóstico + riesgo + estrategia
+//   3. Análisis de jurisprudencia — extracción automática de holding
+//   4. Panel IA en Estrategia Pro — análisis profundo con Claude
+//
+// DEPENDENCIAS: 12-ia-providers.js (iaCall, iaGetProvider, iaGetKey)
+// ████████████████████████████████████████████████████████████████████
 
-        // ═══════════════════════════════════════════════════════════════════
-        // UTILIDAD — _clEscHtml (FIX Problema 4: previene XSS de respuestas IA)
-        // Reemplaza el patrón `escHtml ? escHtml(x) : x` — escape siempre garantizado.
-        // ═══════════════════════════════════════════════════════════════════
-        function _clEscHtml(s) {
-            if (typeof s !== 'string') return String(s == null ? '' : s);
-            return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-                    .replace(/"/g,'&quot;').replace(/'/g,'&#x27;');
-        }
+// ═══════════════════════════════════════════════════════════════════
+// UTILIDAD — _clEscHtml (FIX Problema 4: previene XSS de respuestas IA)
+// Reemplaza el patrón `escHtml ? escHtml(x) : x` — escape siempre garantizado.
+// ═══════════════════════════════════════════════════════════════════
+function _clEscHtml(s) {
+    if (typeof s !== 'string') return String(s == null ? '' : s);
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+}
 
-        // ═══════════════════════════════════════════════════════════════════
-        // SECCIÓN 1 — CONTEXTO DEL DESPACHO (se inyecta en todos los prompts)
-        // ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+// SECCIÓN 1 — CONTEXTO DEL DESPACHO (se inyecta en todos los prompts)
+// ═══════════════════════════════════════════════════════════════════
 
-        function clBuildContext(opts = {}) {
-            const causas   = (DB.causas   || []);
-            const clientes = (DB.clientes  || []);
-            const juris    = (DB.jurisprudencia || []);
-            const tramites = (() => { try { return JSON.parse(localStorage.getItem('APPBOGADO_TRAMITES_V1')) || []; } catch(e) { return []; } })();
-            const doctrina = (() => { try { return JSON.parse(localStorage.getItem('APPBOGADO_DOCTRINA_V1'))  || []; } catch(e) { return []; } })();
+function clBuildContext(opts = {}) {
+    const causas = (DB.causas || []);
+    const clientes = (DB.clientes || []);
+    const juris = (DB.jurisprudencia || []);
+    const tramites = (() => { try { return JSON.parse(localStorage.getItem('APPBOGADO_TRAMITES_V1')) || []; } catch (e) { return []; } })();
+    const doctrina = (() => { try { return JSON.parse(localStorage.getItem('APPBOGADO_DOCTRINA_V1')) || []; } catch (e) { return []; } })();
 
-            const hoy = new Date().toLocaleDateString('es-CL', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+    const hoy = new Date().toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-            let ctx = `=== SISTEMA: APPBOGADO — ASISTENTE JURÍDICO LEGAL ===
+    let ctx = `=== SISTEMA: APPBOGADO — ASISTENTE JURÍDICO LEGAL ===
 Fecha actual: ${hoy}
 Jurisdicción: Chile (Derecho chileno)
 Rol: Eres un asistente jurídico especializado en derecho chileno.
@@ -49,45 +49,45 @@ Trámites administrativos: ${tramites.length}
 Doctrina cargada: ${doctrina.length} textos
 `;
 
-            if (opts.causas && causas.length) {
-                ctx += `\n=== CARTERA DE CAUSAS ===\n`;
-                causas.slice(0, 20).forEach(c => {
-                    const etapasPend = (c.etapasProcesales||[]).filter(e=>!e.completada).length;
-                    const riesgoMax  = Object.values(c.riesgo||{}).includes('Alto') ? '🔴 ALTO'
-                                    : Object.values(c.riesgo||{}).includes('Medio') ? '🟡 MEDIO' : '🟢 BAJO';
-                    ctx += `- [${c.id}] ${c.caratula} | ${c.rama||'Civil'} | ${c.estadoGeneral||'En tramitación'} | Avance: ${c.porcentajeAvance||0}% | Riesgo: ${riesgoMax} | Etapas pend.: ${etapasPend}\n`;
-                });
-            }
+    if (opts.causas && causas.length) {
+        ctx += `\n=== CARTERA DE CAUSAS ===\n`;
+        causas.slice(0, 20).forEach(c => {
+            const etapasPend = (c.etapasProcesales || []).filter(e => !e.completada).length;
+            const riesgoMax = Object.values(c.riesgo || {}).includes('Alto') ? '🔴 ALTO'
+                : Object.values(c.riesgo || {}).includes('Medio') ? '🟡 MEDIO' : '🟢 BAJO';
+            ctx += `- [${c.id}] ${c.caratula} | ${c.rama || 'Civil'} | ${c.estadoGeneral || 'En tramitación'} | Avance: ${c.porcentajeAvance || 0}% | Riesgo: ${riesgoMax} | Etapas pend.: ${etapasPend}\n`;
+        });
+    }
 
-            if (opts.juris && juris.length) {
-                ctx += `\n=== JURISPRUDENCIA INDEXADA ===\n`;
-                juris.slice(0, 15).forEach(j => {
-                    ctx += `- ${j.tribunal} Rol ${j.rol} | ${j.materia} | Tendencia: ${j.tendencia} | Relevancia: ${j.nivelRelevancia}\n`;
-                    if (j.temaCentral) ctx += `  Tema: ${j.temaCentral}\n`;
-                });
-            }
+    if (opts.juris && juris.length) {
+        ctx += `\n=== JURISPRUDENCIA INDEXADA ===\n`;
+        juris.slice(0, 15).forEach(j => {
+            ctx += `- ${j.tribunal} Rol ${j.rol} | ${j.materia} | Tendencia: ${j.tendencia} | Relevancia: ${j.nivelRelevancia}\n`;
+            if (j.temaCentral) ctx += `  Tema: ${j.temaCentral}\n`;
+        });
+    }
 
-            if (opts.tramites && tramites.length) {
-                ctx += `\n=== TRÁMITES ADMINISTRATIVOS ===\n`;
-                tramites.filter(t => !['resuelto','archivado'].includes(t.estado)).slice(0, 10).forEach(t => {
-                    const dias = t.fechaLimite ? Math.round((new Date(t.fechaLimite)-new Date())/86400000) : null;
-                    ctx += `- ${t.organismo}: ${t.tipo} | ${t.caratula} | Estado: ${t.estado}${dias!==null?` | Vence en: ${dias}d`:''}n`;
-                });
-            }
+    if (opts.tramites && tramites.length) {
+        ctx += `\n=== TRÁMITES ADMINISTRATIVOS ===\n`;
+        tramites.filter(t => !['resuelto', 'archivado'].includes(t.estado)).slice(0, 10).forEach(t => {
+            const dias = t.fechaLimite ? Math.round((new Date(t.fechaLimite) - new Date()) / 86400000) : null;
+            ctx += `- ${t.organismo}: ${t.tipo} | ${t.caratula} | Estado: ${t.estado}${dias !== null ? ` | Vence en: ${dias}d` : ''}n`;
+        });
+    }
 
-            return ctx;
-        }
+    return ctx;
+}
 
-        function clBuildCausaContext(causaId) {
-            const causa = DB.causas.find(c => c.id == causaId);
-            if (!causa) return '';
-            const cliente = DB.clientes.find(c => c.id === causa.clienteId);
-            const etapas  = causa.etapasProcesales || [];
-            const docs    = causa.documentos || [];
-            const tareas  = causa.tareas || [];
-            const jurisAsoc = (DB.jurisprudencia||[]).filter(j => j.causaAsociada == causaId || causa.jurisprudenciaIds?.includes(j.id));
+function clBuildCausaContext(causaId) {
+    const causa = DB.causas.find(c => c.id == causaId);
+    if (!causa) return '';
+    const cliente = DB.clientes.find(c => c.id === causa.clienteId);
+    const etapas = causa.etapasProcesales || [];
+    const docs = causa.documentos || [];
+    const tareas = causa.tareas || [];
+    const jurisAsoc = (DB.jurisprudencia || []).filter(j => j.causaAsociada == causaId || causa.jurisprudenciaIds?.includes(j.id));
 
-            return `
+    return `
 === CAUSA EN ANÁLISIS ===
 Carátula: ${causa.caratula}
 RIT/RUC: ${causa.rut || 'N/D'}
@@ -107,76 +107,76 @@ ${causa.hechos || causa.descripcion || 'No especificados.'}
 Estrategia definida:
 ${causa.estrategia?.descripcion || causa.estrategia || 'No definida.'}
 
-Etapas procesales (${etapas.filter(e=>e.completada).length}/${etapas.length} completadas):
-${etapas.map(e => `  [${e.completada?'✓':'○'}] ${e.nombre}${e.fecha?' — '+new Date(e.fecha).toLocaleDateString('es-CL'):''}`).join('\n') || 'Sin etapas.'}
+Etapas procesales (${etapas.filter(e => e.completada).length}/${etapas.length} completadas):
+${etapas.map(e => `  [${e.completada ? '✓' : '○'}] ${e.nombre}${e.fecha ? ' — ' + new Date(e.fecha).toLocaleDateString('es-CL') : ''}`).join('\n') || 'Sin etapas.'}
 
 Evaluación de riesgo:
-${Object.entries(causa.riesgo||{}).map(([k,v])=>`  ${k}: ${v}`).join('\n') || 'Sin evaluación.'}
+${Object.entries(causa.riesgo || {}).map(([k, v]) => `  ${k}: ${v}`).join('\n') || 'Sin evaluación.'}
 
 Documentos asociados: ${docs.length}
-Tareas pendientes: ${tareas.filter(t=>!t.done).length}
+Tareas pendientes: ${tareas.filter(t => !t.done).length}
 Jurisprudencia asociada: ${jurisAsoc.length} sentencias
-${jurisAsoc.map(j=>`  - ${j.tribunal} Rol ${j.rol}: ${j.tendencia}`).join('\n')}
+${jurisAsoc.map(j => `  - ${j.tribunal} Rol ${j.rol}: ${j.tendencia}`).join('\n')}
 
 Observaciones:
 ${causa.observaciones || 'Sin observaciones.'}`;
-        }
+}
 
-        // ═══════════════════════════════════════════════════════════════════
-        // SECCIÓN 2 — ASISTENTE FLOTANTE GLOBAL (LEXBOT)
-        // ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+// SECCIÓN 2 — ASISTENTE FLOTANTE GLOBAL (LEXBOT)
+// ═══════════════════════════════════════════════════════════════════
 
-        let _clChatHistory = [];   // [{role, content}]
-        let _clChatCausaId = null; // Si fue abierto desde una causa
-        let _clChatOpen    = false;
+let _clChatHistory = [];   // [{role, content}]
+let _clChatCausaId = null; // Si fue abierto desde una causa
+let _clChatOpen = false;
 
-        function clInyectarBotonFlotante() {
-            if (document.getElementById('cl-fab')) return;
-            const fab = document.createElement('button');
-            fab.id = 'cl-fab';
-            fab.title = 'Abrir Bot AI — Asistente Jurídico IA';
-            fab.innerHTML = `<span class="cl-fab-icon">⚖</span><span class="cl-fab-label">Bot AI</span>`;
-            fab.onclick = () => clToggleChat();
-            document.body.appendChild(fab);
-        }
+function clInyectarBotonFlotante() {
+    if (document.getElementById('cl-fab')) return;
+    const fab = document.createElement('button');
+    fab.id = 'cl-fab';
+    fab.title = 'Abrir Bot AI — Asistente Jurídico IA';
+    fab.innerHTML = `<span class="cl-fab-icon">⚖</span><span class="cl-fab-label">Bot AI</span>`;
+    fab.onclick = () => clToggleChat();
+    document.body.appendChild(fab);
+}
 
-        function clToggleChat(causaId) {
-            if (causaId) _clChatCausaId = causaId;
-            _clChatOpen = !_clChatOpen;
-            const panel = document.getElementById('cl-chat-panel');
-            if (_clChatOpen) {
-                if (!panel) clCrearChatPanel();
-                else document.getElementById('cl-chat-panel').classList.add('open');
-                setTimeout(() => document.getElementById('cl-chat-input')?.focus(), 100);
-            } else {
-                panel?.classList.remove('open');
-            }
-        }
+function clToggleChat(causaId) {
+    if (causaId) _clChatCausaId = causaId;
+    _clChatOpen = !_clChatOpen;
+    const panel = document.getElementById('cl-chat-panel');
+    if (_clChatOpen) {
+        if (!panel) clCrearChatPanel();
+        else document.getElementById('cl-chat-panel').classList.add('open');
+        setTimeout(() => document.getElementById('cl-chat-input')?.focus(), 100);
+    } else {
+        panel?.classList.remove('open');
+    }
+}
 
-        // Punto de entrada principal: abre el chat IA desde el detalle de una causa.
-        // Si 14-features-v8.js está cargado, delega primero la inyección de contexto
-        // en la UI del LexBot legacy (_lexbotCargarContextoUI), luego abre el panel.
-        function lexbotAbrirConCausa(causaId) {
-            _clChatCausaId = causaId;
-            _clChatHistory = [];
-            _clChatOpen = false;
-            // Inyectar badge + historial en UI legacy si el módulo v8 está disponible
-            if (typeof _lexbotCargarContextoUI === 'function') {
-                _lexbotCargarContextoUI(causaId);
-            }
-            clToggleChat(causaId);
-        }
+// Punto de entrada principal: abre el chat IA desde el detalle de una causa.
+// Si 14-features-v8.js está cargado, delega primero la inyección de contexto
+// en la UI del LexBot legacy (_lexbotCargarContextoUI), luego abre el panel.
+function lexbotAbrirConCausa(causaId) {
+    _clChatCausaId = causaId;
+    _clChatHistory = [];
+    _clChatOpen = false;
+    // Inyectar badge + historial en UI legacy si el módulo v8 está disponible
+    if (typeof _lexbotCargarContextoUI === 'function') {
+        _lexbotCargarContextoUI(causaId);
+    }
+    clToggleChat(causaId);
+}
 
-        function clCrearChatPanel() {
-            const provider = typeof IA_PROVIDERS !== 'undefined' ? IA_PROVIDERS[iaGetProvider()]?.label : 'Claude';
-            // FIX Problema 1: iaGetKey es async — no usar síncronamente.
-            // El banner de key faltante se resuelve de forma async (ver bloque al final de esta función).
-            const causa    = _clChatCausaId ? DB.causas.find(c => c.id == _clChatCausaId) : null;
+function clCrearChatPanel() {
+    const provider = typeof IA_PROVIDERS !== 'undefined' ? IA_PROVIDERS[iaGetProvider()]?.label : 'Claude';
+    // FIX Problema 1: iaGetKey es async — no usar síncronamente.
+    // El banner de key faltante se resuelve de forma async (ver bloque al final de esta función).
+    const causa = _clChatCausaId ? DB.causas.find(c => c.id == _clChatCausaId) : null;
 
-            const panel = document.createElement('div');
-            panel.id    = 'cl-chat-panel';
-            panel.classList.add('open');
-            panel.innerHTML = `
+    const panel = document.createElement('div');
+    panel.id = 'cl-chat-panel';
+    panel.classList.add('open');
+    panel.innerHTML = `
             <div class="cl-chat-header">
                 <div class="cl-chat-header-left">
                     <span class="cl-chat-icon">⚖</span>
@@ -198,7 +198,7 @@ ${causa.observaciones || 'Sin observaciones.'}`;
             ${causa ? `
             <div class="cl-causa-chip">
                 <i class="fas fa-gavel"></i>
-                <span>Contexto: <strong>${causa.caratula.substring(0,45)}${causa.caratula.length>45?'…':''}</strong></span>
+                <span>Contexto: <strong>${causa.caratula.substring(0, 45)}${causa.caratula.length > 45 ? '…' : ''}</strong></span>
                 <button onclick="_clChatCausaId=null; clActualizarCausaChip()" title="Quitar contexto">×</button>
             </div>` : `<div id="cl-causa-chip-wrap"></div>`}
 
@@ -213,16 +213,16 @@ ${causa.observaciones || 'Sin observaciones.'}`;
                         <p>Puedo ayudarte con:</p>
                         <div class="cl-sugerencias">
                             ${(causa ? [
-                                `Analiza el estado procesal de esta causa`,
-                                `¿Cuál es el riesgo principal de esta causa?`,
-                                `Sugiere la estrategia óptima para este caso`,
-                                `¿Qué jurisprudencia aplica aquí?`,
-                            ] : [
-                                `¿Cuáles son mis causas de mayor riesgo?`,
-                                `Resume el estado de todos mis trámites pendientes`,
-                                `¿Qué causas tienen plazos próximos a vencer?`,
-                                `Analiza mi cartera y sugiere prioridades`,
-                            ]).map(s => `<button class="cl-sug-btn" onclick="clEnviarSugerencia('${s.replace(/'/g,"\\'")}')">
+            `Analiza el estado procesal de esta causa`,
+            `¿Cuál es el riesgo principal de esta causa?`,
+            `Sugiere la estrategia óptima para este caso`,
+            `¿Qué jurisprudencia aplica aquí?`,
+        ] : [
+            `¿Cuáles son mis causas de mayor riesgo?`,
+            `Resume el estado de todos mis trámites pendientes`,
+            `¿Qué causas tienen plazos próximos a vencer?`,
+            `Analiza mi cartera y sugiere prioridades`,
+        ]).map(s => `<button class="cl-sug-btn" onclick="clEnviarSugerencia('${s.replace(/'/g, "\\'")}')">
                                 ${s}
                             </button>`).join('')}
                         </div>
@@ -244,87 +244,87 @@ ${causa.observaciones || 'Sin observaciones.'}`;
                 <div class="cl-footer-note">Shift+Enter para salto de línea · Respuestas orientativas, no reemplazan asesoría legal</div>
             </div>`;
 
-            document.body.appendChild(panel);
+    document.body.appendChild(panel);
 
-            // FIX Problema 1: resolver iaGetKey async e inyectar warning si no hay key
-            if (typeof iaGetKey === 'function') {
-                Promise.resolve(iaGetKey(iaGetProvider())).then(function(k) {
-                    var slot = document.getElementById('cl-no-key-warn-slot');
-                    if (!k && slot) {
-                        slot.innerHTML = '<div class="cl-no-key-warn">'
-                            + '<i class="fas fa-key"></i>'
-                            + '<div><strong>Configura tu API Key</strong><br>'
-                            + 'Ve a <em>Sistema &rarr; Configurar IA</em> y selecciona el proveedor.<br>'
-                            + '<a href="https://console.anthropic.com/settings/keys" target="_blank">Obtener key Anthropic &rarr;</a>'
-                            + '</div></div>';
-                    }
-                });
+    // FIX Problema 1: resolver iaGetKey async e inyectar warning si no hay key
+    if (typeof iaGetKey === 'function') {
+        Promise.resolve(iaGetKey(iaGetProvider())).then(function (k) {
+            var slot = document.getElementById('cl-no-key-warn-slot');
+            if (!k && slot) {
+                slot.innerHTML = '<div class="cl-no-key-warn">'
+                    + '<i class="fas fa-key"></i>'
+                    + '<div><strong>Configura tu API Key</strong><br>'
+                    + 'Ve a <em>Sistema &rarr; Configurar IA</em> y selecciona el proveedor.<br>'
+                    + '<a href="https://console.anthropic.com/settings/keys" target="_blank">Obtener key Anthropic &rarr;</a>'
+                    + '</div></div>';
             }
-        }
+        });
+    }
+}
 
-        function clActualizarCausaChip() {
-            const wrap = document.getElementById('cl-causa-chip-wrap');
-            if (wrap) wrap.innerHTML = '';
-        }
+function clActualizarCausaChip() {
+    const wrap = document.getElementById('cl-causa-chip-wrap');
+    if (wrap) wrap.innerHTML = '';
+}
 
-        function clLimpiarChat() {
-            _clChatHistory = [];
-            const msgs = document.getElementById('cl-chat-messages');
-            if (msgs) msgs.innerHTML = `
+function clLimpiarChat() {
+    _clChatHistory = [];
+    const msgs = document.getElementById('cl-chat-messages');
+    if (msgs) msgs.innerHTML = `
             <div class="cl-msg cl-msg-ai">
                 <div class="cl-msg-avatar">⚖</div>
                 <div class="cl-msg-bubble"><p>Nueva conversación iniciada. ¿En qué te ayudo?</p></div>
             </div>`;
-        }
+}
 
-        function clEnviarSugerencia(texto) {
-            const input = document.getElementById('cl-chat-input');
-            if (input) input.value = texto;
-            clEnviar();
-        }
+function clEnviarSugerencia(texto) {
+    const input = document.getElementById('cl-chat-input');
+    if (input) input.value = texto;
+    clEnviar();
+}
 
-        async function clEnviar() {
-            const input = document.getElementById('cl-chat-input');
-            const texto = input?.value?.trim();
-            if (!texto) return;
+async function clEnviar() {
+    const input = document.getElementById('cl-chat-input');
+    const texto = input?.value?.trim();
+    if (!texto) return;
 
-            input.value = '';
-            input.style.height = 'auto';
+    input.value = '';
+    input.style.height = 'auto';
 
-            const pid = typeof iaGetProvider === 'function' ? iaGetProvider() : 'claude';
-            // FIX Problema 1: iaGetKey es async 2014 await obligatorio
-            const key = typeof iaGetKey === 'function' ? await iaGetKey(pid) : null;
-            if (!key) {
-                clAgregarMensaje('ai', '⚠ No hay API Key configurada. Ve a **Sistema → Configurar IA** para agregar tu key de Claude o Gemini.');
-                return;
-            }
+    const pid = typeof iaGetProvider === 'function' ? iaGetProvider() : 'claude';
+    // FIX Problema 1: iaGetKey es async 2014 await obligatorio
+    const key = typeof iaGetKey === 'function' ? await iaGetKey(pid) : null;
+    if (!key) {
+        clAgregarMensaje('ai', '⚠ No hay API Key configurada. Ve a **Sistema → Configurar IA** para agregar tu key de Claude o Gemini.');
+        return;
+    }
 
-            clAgregarMensaje('user', texto);
-            _clChatHistory.push({ role: 'user', content: texto });
+    clAgregarMensaje('user', texto);
+    _clChatHistory.push({ role: 'user', content: texto });
 
-            // Indicador de escritura
-            const typingId = 'cl-typing-' + Date.now();
-            clAgregarMensaje('ai', '<span class="cl-typing"><span></span><span></span><span></span></span>', typingId);
+    // Indicador de escritura
+    const typingId = 'cl-typing-' + Date.now();
+    clAgregarMensaje('ai', '<span class="cl-typing"><span></span><span></span><span></span></span>', typingId);
 
-            const btn = document.getElementById('cl-send-btn');
-            if (btn) btn.disabled = true;
+    const btn = document.getElementById('cl-send-btn');
+    if (btn) btn.disabled = true;
 
-            try {
-                // Construir prompt con contexto
-                const hayContextoCausa = !!_clChatCausaId;
-                const context = clBuildContext({
-                    causas: true,
-                    juris: true,
-                    tramites: hayContextoCausa ? false : true,
-                });
-                const causaCtx = hayContextoCausa ? clBuildCausaContext(_clChatCausaId) : '';
+    try {
+        // Construir prompt con contexto
+        const hayContextoCausa = !!_clChatCausaId;
+        const context = clBuildContext({
+            causas: true,
+            juris: true,
+            tramites: hayContextoCausa ? false : true,
+        });
+        const causaCtx = hayContextoCausa ? clBuildCausaContext(_clChatCausaId) : '';
 
-                // Historial de conversación (últimos 6 turnos)
-                const historialStr = _clChatHistory.slice(-6, -1).map(m =>
-                    `${m.role === 'user' ? 'ABOGADO' : 'CLAUDE'}: ${m.content}`
-                ).join('\n\n');
+        // Historial de conversación (últimos 6 turnos)
+        const historialStr = _clChatHistory.slice(-6, -1).map(m =>
+            `${m.role === 'user' ? 'ABOGADO' : 'CLAUDE'}: ${m.content}`
+        ).join('\n\n');
 
-                const prompt = `${context}
+        const prompt = `${context}
 ${causaCtx}
 
 ${historialStr ? `=== CONVERSACIÓN PREVIA ===\n${historialStr}\n` : ''}
@@ -333,83 +333,83 @@ ABOGADO: ${texto}
 
 CLAUDE LEGAL (responde en español, de forma precisa y práctica, citando normativa chilena cuando sea relevante. Si es análisis de riesgo, usa formato claro con niveles. Si es estrategia, da pasos concretos. Máximo 400 palabras salvo que se pida más detalle):`;
 
-                const respuesta = await iaCall(prompt);
+        const respuesta = await iaCall(prompt);
 
-                // Eliminar indicador de escritura
-                document.getElementById(typingId)?.remove();
+        // Eliminar indicador de escritura
+        document.getElementById(typingId)?.remove();
 
-                _clChatHistory.push({ role: 'assistant', content: respuesta });
-                clAgregarMensaje('ai', clFormatearRespuesta(respuesta));
+        _clChatHistory.push({ role: 'assistant', content: respuesta });
+        clAgregarMensaje('ai', clFormatearRespuesta(respuesta));
 
-            } catch(e) {
-                document.getElementById(typingId)?.remove();
-                clAgregarMensaje('ai', `⚠ Error: ${e.message}`);
-            } finally {
-                if (btn) btn.disabled = false;
-                input?.focus();
-            }
-        }
+    } catch (e) {
+        document.getElementById(typingId)?.remove();
+        clAgregarMensaje('ai', `⚠ Error: ${e.message}`);
+    } finally {
+        if (btn) btn.disabled = false;
+        input?.focus();
+    }
+}
 
-        function clAgregarMensaje(role, html, id) {
-            const msgs = document.getElementById('cl-chat-messages');
-            if (!msgs) return;
-            const div = document.createElement('div');
-            if (id) div.id = id;
-            div.className = `cl-msg cl-msg-${role}`;
-            div.innerHTML = role === 'user'
-                ? `<div class="cl-msg-bubble cl-msg-user-bubble">${_clEscHtml(html)}</div>`
-                : `<div class="cl-msg-avatar">⚖</div><div class="cl-msg-bubble">${html}</div>`;
-            msgs.appendChild(div);
-            msgs.scrollTop = msgs.scrollHeight;
-        }
+function clAgregarMensaje(role, html, id) {
+    const msgs = document.getElementById('cl-chat-messages');
+    if (!msgs) return;
+    const div = document.createElement('div');
+    if (id) div.id = id;
+    div.className = `cl-msg cl-msg-${role}`;
+    div.innerHTML = role === 'user'
+        ? `<div class="cl-msg-bubble cl-msg-user-bubble">${_clEscHtml(html)}</div>`
+        : `<div class="cl-msg-avatar">⚖</div><div class="cl-msg-bubble">${html}</div>`;
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+}
 
-        function clFormatearRespuesta(texto) {
-            // Convertir Markdown básico a HTML
-            return texto
-                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-                .replace(/\*(.+?)\*/g, '<em>$1</em>')
-                .replace(/^### (.+)$/gm, '<h4>$1</h4>')
-                .replace(/^## (.+)$/gm, '<h3>$1</h3>')
-                .replace(/^# (.+)$/gm, '<h3>$1</h3>')
-                .replace(/^[-•] (.+)$/gm, '<li>$1</li>')
-                .replace(/(<li>.*<\/li>\n?)+/gs, m => `<ul>${m}</ul>`)
-                .replace(/\n\n/g, '</p><p>')
-                .replace(/^(?!<[hul])(.+)$/gm, '$1')
-                .replace(/^/, '<p>').replace(/$/, '</p>')
-                .replace(/<p><\/p>/g, '')
-                .replace(/<p>(<[hul])/g, '$1')
-                .replace(/(<\/[hul][^>]*>)<\/p>/g, '$1');
-        }
+function clFormatearRespuesta(texto) {
+    // Convertir Markdown básico a HTML
+    return texto
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/^### (.+)$/gm, '<h4>$1</h4>')
+        .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^# (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^[-•] (.+)$/gm, '<li>$1</li>')
+        .replace(/(<li>.*<\/li>\n?)+/gs, m => `<ul>${m}</ul>`)
+        .replace(/\n\n/g, '</p><p>')
+        .replace(/^(?!<[hul])(.+)$/gm, '$1')
+        .replace(/^/, '<p>').replace(/$/, '</p>')
+        .replace(/<p><\/p>/g, '')
+        .replace(/<p>(<[hul])/g, '$1')
+        .replace(/(<\/[hul][^>]*>)<\/p>/g, '$1');
+}
 
-        // ═══════════════════════════════════════════════════════════════════
-        // SECCIÓN 3 — ANÁLISIS IA DE CAUSA INDIVIDUAL
-        // ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+// SECCIÓN 3 — ANÁLISIS IA DE CAUSA INDIVIDUAL
+// ═══════════════════════════════════════════════════════════════════
 
-        async function clAnalizarCausa(causaId) {
-            const causa = DB.causas.find(c => c.id == causaId);
-            if (!causa) return;
+async function clAnalizarCausa(causaId) {
+    const causa = DB.causas.find(c => c.id == causaId);
+    if (!causa) return;
 
-            const pid = typeof iaGetProvider === 'function' ? iaGetProvider() : 'claude';
-            // FIX Problema 1: iaGetKey es async 2014 await obligatorio
-            const key = typeof iaGetKey === 'function' ? await iaGetKey(pid) : null;
-            if (!key) {
-                showError('Configura tu API Key en Sistema → Configurar IA');
-                return;
-            }
+    const pid = typeof iaGetProvider === 'function' ? iaGetProvider() : 'claude';
+    // FIX Problema 1: iaGetKey es async 2014 await obligatorio
+    const key = typeof iaGetKey === 'function' ? await iaGetKey(pid) : null;
+    if (!key) {
+        showError('Configura tu API Key en Sistema → Configurar IA');
+        return;
+    }
 
-            // Crear o actualizar el panel de análisis en el detalle de causa
-            let panel = document.getElementById('cl-causa-analysis-panel');
-            if (!panel) {
-                // Inyectar en el detalle de causa
-                const dcLayout = document.querySelector('.dc-layout');
-                if (!dcLayout) return;
-                panel = document.createElement('div');
-                panel.id = 'cl-causa-analysis-panel';
-                panel.className = 'cl-analysis-panel';
-                dcLayout.insertAdjacentElement('afterend', panel);
-            }
+    // Crear o actualizar el panel de análisis en el detalle de causa
+    let panel = document.getElementById('cl-causa-analysis-panel');
+    if (!panel) {
+        // Inyectar en el detalle de causa
+        const dcLayout = document.querySelector('.dc-layout');
+        if (!dcLayout) return;
+        panel = document.createElement('div');
+        panel.id = 'cl-causa-analysis-panel';
+        panel.className = 'cl-analysis-panel';
+        dcLayout.insertAdjacentElement('afterend', panel);
+    }
 
-            panel.innerHTML = `
+    panel.innerHTML = `
             <div class="cl-analysis-header">
                 <span>⚖ Análisis Bot AI</span>
                 <button onclick="document.getElementById('cl-causa-analysis-panel').remove()" class="cl-hdr-btn">×</button>
@@ -418,12 +418,12 @@ CLAUDE LEGAL (responde en español, de forma precisa y práctica, citando normat
                 <div class="cl-spinner"></div>
                 <span>Analizando causa con ${IA_PROVIDERS[pid]?.label || 'IA'}…</span>
             </div>`;
-            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-            try {
-                const ctx = clBuildContext({ juris: true });
-                const causaCtx = clBuildCausaContext(causaId);
-                const prompt = `${ctx}
+    try {
+        const ctx = clBuildContext({ juris: true });
+        const causaCtx = clBuildCausaContext(causaId);
+        const prompt = `${ctx}
 ${causaCtx}
 
 === INSTRUCCIÓN ===
@@ -457,10 +457,10 @@ Realiza un análisis jurídico completo y accionable de esta causa. Estructura t
 
 Sé específico con los datos de esta causa. No des respuestas genéricas.`;
 
-                const respuesta = await iaCall(prompt);
-                panel.innerHTML = `
+        const respuesta = await iaCall(prompt);
+        panel.innerHTML = `
                 <div class="cl-analysis-header">
-                    <span>⚖ Análisis Bot AI — <em>${_clEscHtml(causa.caratula.substring(0,50))}</em></span>
+                    <span>⚖ Análisis Bot AI — <em>${_clEscHtml(causa.caratula.substring(0, 50))}</em></span>
                     <div style="display:flex;gap:8px;">
                         <button onclick="clCopiarAnalisis()" class="cl-hdr-btn" title="Copiar"><i class="fas fa-copy"></i></button>
                         <button onclick="document.getElementById('cl-causa-analysis-panel').remove()" class="cl-hdr-btn">×</button>
@@ -476,40 +476,40 @@ Sé específico con los datos de esta causa. No des respuestas genéricas.`;
                     </button>
                 </div>`;
 
-            } catch(e) {
-                panel.innerHTML = `
+    } catch (e) {
+        panel.innerHTML = `
                 <div class="cl-analysis-header"><span>⚖ Análisis Bot AI</span>
                     <button onclick="document.getElementById('cl-causa-analysis-panel').remove()" class="cl-hdr-btn">×</button>
                 </div>
                 <div class="cl-analysis-error"><i class="fas fa-exclamation-triangle"></i> ${e.message}</div>`;
-            }
-        }
+    }
+}
 
-        function clCopiarAnalisis() {
-            const body = document.getElementById('cl-analysis-body');
-            if (!body) return;
-            navigator.clipboard?.writeText(body.innerText).then(() => {
-                if (typeof showInfo === 'function') showInfo('Análisis copiado al portapapeles');
-            });
-        }
+function clCopiarAnalisis() {
+    const body = document.getElementById('cl-analysis-body');
+    if (!body) return;
+    navigator.clipboard?.writeText(body.innerText).then(() => {
+        if (typeof showInfo === 'function') showInfo('Análisis copiado al portapapeles');
+    });
+}
 
-        // ═══════════════════════════════════════════════════════════════════
-        // SECCIÓN 4 — ANÁLISIS DE JURISPRUDENCIA CON IA
-        // ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+// SECCIÓN 4 — ANÁLISIS DE JURISPRUDENCIA CON IA
+// ═══════════════════════════════════════════════════════════════════
 
-        async function clAnalizarJurisprudencia(jurisId) {
-            const j = DB.jurisprudencia.find(j => j.id == jurisId);
-            if (!j) return;
+async function clAnalizarJurisprudencia(jurisId) {
+    const j = DB.jurisprudencia.find(j => j.id == jurisId);
+    if (!j) return;
 
-            const pid = typeof iaGetProvider === 'function' ? iaGetProvider() : 'claude';
-            // FIX Problema 1: iaGetKey es async 2014 await obligatorio
-            const key = typeof iaGetKey === 'function' ? await iaGetKey(pid) : null;
-            if (!key) { showError('Configura tu API Key en Sistema → Configurar IA'); return; }
+    const pid = typeof iaGetProvider === 'function' ? iaGetProvider() : 'claude';
+    // FIX Problema 1: iaGetKey es async 2014 await obligatorio
+    const key = typeof iaGetKey === 'function' ? await iaGetKey(pid) : null;
+    if (!key) { showError('Configura tu API Key en Sistema → Configurar IA'); return; }
 
-            const modal = document.createElement('div');
-            modal.id = 'cl-juris-modal';
-            modal.className = 'cl-modal-overlay';
-            modal.innerHTML = `
+    const modal = document.createElement('div');
+    modal.id = 'cl-juris-modal';
+    modal.className = 'cl-modal-overlay';
+    modal.innerHTML = `
             <div class="cl-modal">
                 <div class="cl-modal-header">
                     <span>⚖ Análisis Jurisprudencial</span>
@@ -522,15 +522,15 @@ Sé específico con los datos de esta causa. No des respuestas genéricas.`;
                     </div>
                 </div>
             </div>`;
-            document.body.appendChild(modal);
+    document.body.appendChild(modal);
 
-            try {
-                const causasRelevantes = (DB.causas||[]).filter(c =>
-                    (c.rama||'').toLowerCase().includes((j.materia||'').toLowerCase().substring(0,5)) ||
-                    (c.tipoProcedimiento||'').toLowerCase().includes((j.materia||'').toLowerCase().substring(0,5))
-                );
+    try {
+        const causasRelevantes = (DB.causas || []).filter(c =>
+            (c.rama || '').toLowerCase().includes((j.materia || '').toLowerCase().substring(0, 5)) ||
+            (c.tipoProcedimiento || '').toLowerCase().includes((j.materia || '').toLowerCase().substring(0, 5))
+        );
 
-                const prompt = `${clBuildContext({})}
+        const prompt = `${clBuildContext({})}
 
 === SENTENCIA A ANALIZAR ===
 Tribunal: ${j.tribunal}
@@ -541,7 +541,7 @@ Procedimiento: ${j.procedimiento || 'N/D'}
 Tema central: ${j.temaCentral || 'N/D'}
 Tendencia: ${j.tendencia}
 Nivel de relevancia: ${j.nivelRelevancia}
-Palabras clave: ${(j.palabrasClave||[]).join(', ')}
+Palabras clave: ${(j.palabrasClave || []).join(', ')}
 
 CAUSAS DEL DESPACHO POSIBLEMENTE RELACIONADAS:
 ${causasRelevantes.map(c => `- ${c.caratula} (${c.rama}, ${c.estadoGeneral})`).join('\n') || 'Ninguna identificada automáticamente.'}
@@ -567,46 +567,46 @@ Analiza esta sentencia y entrega:
 **OBITER DICTA RELEVANTES**
 [Comentarios del tribunal con valor orientador]`;
 
-                const resp = await iaCall(prompt);
-                modal.querySelector('.cl-modal-body').innerHTML = `
+        const resp = await iaCall(prompt);
+        modal.querySelector('.cl-modal-body').innerHTML = `
                 <div class="cl-juris-meta">
                     <strong>${j.tribunal}</strong> · Rol ${j.rol}<br>
-                    <span class="badge ${j.tendencia==='Favorable'?'badge-s':j.tendencia==='Desfavorable'?'badge-d':'badge-a'}">${j.tendencia}</span>
+                    <span class="badge ${j.tendencia === 'Favorable' ? 'badge-s' : j.tendencia === 'Desfavorable' ? 'badge-d' : 'badge-a'}">${j.tendencia}</span>
                     <span style="margin-left:8px;font-size:12px;color:var(--text-3);">${j.materia}</span>
                 </div>
                 <div class="cl-analysis-body">${clFormatearRespuesta(resp)}</div>`;
-            } catch(e) {
-                modal.querySelector('.cl-modal-body').innerHTML = `<div class="cl-analysis-error"><i class="fas fa-exclamation-triangle"></i> ${e.message}</div>`;
-            }
-        }
+    } catch (e) {
+        modal.querySelector('.cl-modal-body').innerHTML = `<div class="cl-analysis-error"><i class="fas fa-exclamation-triangle"></i> ${e.message}</div>`;
+    }
+}
 
-        // ═══════════════════════════════════════════════════════════════════
-        // SECCIÓN 5 — ANÁLISIS ESTRATÉGICO CON IA (Estrategia Pro)
-        // ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+// SECCIÓN 5 — ANÁLISIS ESTRATÉGICO CON IA (Estrategia Pro)
+// ═══════════════════════════════════════════════════════════════════
 
-        async function clAnalizarEstrategiaPro(causaId) {
-            const causa = DB.causas.find(c => c.id == causaId);
-            if (!causa) { showError('Selecciona una causa primero.'); return; }
+async function clAnalizarEstrategiaPro(causaId) {
+    const causa = DB.causas.find(c => c.id == causaId);
+    if (!causa) { showError('Selecciona una causa primero.'); return; }
 
-            const pid = typeof iaGetProvider === 'function' ? iaGetProvider() : 'claude';
-            // FIX Problema 1: iaGetKey es async 2014 await obligatorio
-            const key = typeof iaGetKey === 'function' ? await iaGetKey(pid) : null;
-            if (!key) { showError('Configura tu API Key en Sistema → Configurar IA'); return; }
+    const pid = typeof iaGetProvider === 'function' ? iaGetProvider() : 'claude';
+    // FIX Problema 1: iaGetKey es async 2014 await obligatorio
+    const key = typeof iaGetKey === 'function' ? await iaGetKey(pid) : null;
+    if (!key) { showError('Configura tu API Key en Sistema → Configurar IA'); return; }
 
-            const contenedor = document.getElementById('analisisEstrategico');
-            if (!contenedor) return;
+    const contenedor = document.getElementById('analisisEstrategico');
+    if (!contenedor) return;
 
-            contenedor.innerHTML = `
+    contenedor.innerHTML = `
             <div class="cl-ep-loading">
                 <div class="cl-spinner"></div>
                 <span>Claude está elaborando la estrategia legal para esta causa…</span>
             </div>`;
 
-            try {
-                const ctx = clBuildContext({ juris: true });
-                const causaCtx = clBuildCausaContext(causaId);
+    try {
+        const ctx = clBuildContext({ juris: true });
+        const causaCtx = clBuildCausaContext(causaId);
 
-                const prompt = `${ctx}
+        const prompt = `${ctx}
 ${causaCtx}
 
 === INSTRUCCIÓN: ANÁLISIS ESTRATÉGICO PROFUNDO ===
@@ -650,9 +650,9 @@ Semanas 7-12: [Acciones de consolidación]
 
 Sé específico. Cita normativa chilena aplicable. Evita generalidades.`;
 
-                const resp = await iaCall(prompt);
+        const resp = await iaCall(prompt);
 
-                contenedor.innerHTML = `
+        contenedor.innerHTML = `
                 <div class="cl-ep-header">
                     <span>⚖ Análisis Estratégico Bot AI</span>
                     <div style="display:flex;gap:8px;">
@@ -666,196 +666,196 @@ Sé específico. Cita normativa chilena aplicable. Evita generalidades.`;
                 </div>
                 <div class="cl-ep-body" id="cl-ep-body">${clFormatearRespuesta(resp)}</div>
                 <div class="cl-ep-footer">
-                    <i class="fas fa-robot"></i> Generado con ${IA_PROVIDERS[pid]?.label||'IA'} ·
+                    <i class="fas fa-robot"></i> Generado con ${IA_PROVIDERS[pid]?.label || 'IA'} ·
                     Revisar con criterio profesional antes de actuar.
                 </div>`;
 
-            } catch(e) {
-                contenedor.innerHTML = `<div class="cl-analysis-error"><i class="fas fa-exclamation-triangle"></i> ${e.message}</div>`;
-            }
-        }
+    } catch (e) {
+        contenedor.innerHTML = `<div class="cl-analysis-error"><i class="fas fa-exclamation-triangle"></i> ${e.message}</div>`;
+    }
+}
 
-        // ═══════════════════════════════════════════════════════════════════
-        // SECCIÓN 6 — INYECCIÓN EN MÓDULOS EXISTENTES
-        // ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+// SECCIÓN 6 — INYECCIÓN EN MÓDULOS EXISTENTES
+// ═══════════════════════════════════════════════════════════════════
 
-        // Inyectar botón "Analizar con Claude" en el detalle de causa
-        function clInyectarBotonesCausa() {
-            // Patch abrirDetalleCausa para agregar botón IA
-            const origAbrir = window.abrirDetalleCausa;
-            if (origAbrir && !origAbrir._clPatched) {
-                window.abrirDetalleCausa = function(causaId) {
-                    origAbrir(causaId);
-                    // Agregar botón IA en dc-actions si no existe
-                    setTimeout(() => {
-                        const actions = document.querySelector('.dc-actions');
-                        if (actions && !document.getElementById(`cl-causa-btn-${causaId}`)) {
-                            const btn = document.createElement('button');
-                            btn.id = `cl-causa-btn-${causaId}`;
-                            btn.className = 'dc-btn';
-                            btn.style.cssText = 'background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;border:none;';
-                            btn.innerHTML = '<i class="fas fa-brain"></i> Analizar IA';
-                            btn.onclick = () => clAnalizarCausa(causaId);
-                            // Insertar antes del botón Estrategia
-                            const estrategiaBtn = actions.querySelector('.dc-btn.primary');
-                            if (estrategiaBtn) actions.insertBefore(btn, estrategiaBtn);
-                            else actions.appendChild(btn);
-                        }
-                    }, 100);
-                };
-                window.abrirDetalleCausa._clPatched = true;
-            }
-        }
+// Inyectar botón "Analizar con Claude" en el detalle de causa
+function clInyectarBotonesCausa() {
+    // Patch abrirDetalleCausa para agregar botón IA
+    const origAbrir = window.abrirDetalleCausa;
+    if (origAbrir && !origAbrir._clPatched) {
+        window.abrirDetalleCausa = function (causaId) {
+            origAbrir(causaId);
+            // Agregar botón IA en dc-actions si no existe
+            setTimeout(() => {
+                const actions = document.querySelector('.dc-actions');
+                if (actions && !document.getElementById(`cl-causa-btn-${causaId}`)) {
+                    const btn = document.createElement('button');
+                    btn.id = `cl-causa-btn-${causaId}`;
+                    btn.className = 'dc-btn';
+                    btn.style.cssText = 'background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;border:none;';
+                    btn.innerHTML = '<i class="fas fa-brain"></i> Analizar IA';
+                    btn.onclick = () => clAnalizarCausa(causaId);
+                    // Insertar antes del botón Estrategia
+                    const estrategiaBtn = actions.querySelector('.dc-btn.primary');
+                    if (estrategiaBtn) actions.insertBefore(btn, estrategiaBtn);
+                    else actions.appendChild(btn);
+                }
+            }, 100);
+        };
+        window.abrirDetalleCausa._clPatched = true;
+    }
+}
 
-        // Inyectar botón IA en Estrategia Pro
-        function clInyectarBotonEstrategiaPro() {
-            const origRender = window.uiRenderEstrategiaPro;
-            if (origRender && !origRender._clPatched) {
-                window.uiRenderEstrategiaPro = function() {
-                    origRender();
-                    setTimeout(() => {
-                        const contenedor = document.getElementById('analisisEstrategico');
-                        if (!contenedor) return;
-                        // Solo agregar si no ya tiene contenido IA
-                        if (contenedor.querySelector('.cl-ep-header')) return;
-                        const causaId = parseInt(document.getElementById('ep-causa-sel')?.value);
-                        if (!causaId) return;
-                        // Agregar botón IA encima del análisis existente
-                        const btnWrap = document.createElement('div');
-                        btnWrap.style.cssText = 'margin-bottom:16px;';
-                        btnWrap.innerHTML = `<button onclick="clAnalizarEstrategiaPro(${causaId})"
+// Inyectar botón IA en Estrategia Pro
+function clInyectarBotonEstrategiaPro() {
+    const origRender = window.uiRenderEstrategiaPro;
+    if (origRender && !origRender._clPatched) {
+        window.uiRenderEstrategiaPro = function () {
+            origRender();
+            setTimeout(() => {
+                const contenedor = document.getElementById('analisisEstrategico');
+                if (!contenedor) return;
+                // Solo agregar si no ya tiene contenido IA
+                if (contenedor.querySelector('.cl-ep-header')) return;
+                const causaId = parseInt(document.getElementById('ep-causa-sel')?.value);
+                if (!causaId) return;
+                // Agregar botón IA encima del análisis existente
+                const btnWrap = document.createElement('div');
+                btnWrap.style.cssText = 'margin-bottom:16px;';
+                btnWrap.innerHTML = `<button onclick="clAnalizarEstrategiaPro(${causaId})"
                             style="display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">
                             <i class="fas fa-brain"></i> Análisis Estratégico con Bot AI
                         </button>`;
-                        contenedor.insertAdjacentElement('beforebegin', btnWrap);
-                    }, 150);
-                };
-                window.uiRenderEstrategiaPro._clPatched = true;
-            }
-        }
+                contenedor.insertAdjacentElement('beforebegin', btnWrap);
+            }, 150);
+        };
+        window.uiRenderEstrategiaPro._clPatched = true;
+    }
+}
 
-        // Inyectar botón IA en cada sentencia de jurisprudencia
-        function clInyectarBotonJuris() {
-            const origRender = window.uiRenderJurisprudenciaAvanzada;
-            if (origRender && !origRender._clPatched) {
-                window.uiRenderJurisprudenciaAvanzada = function() {
-                    origRender();
-                    // Agregar botón "Analizar con IA" a cada tarjeta
-                    setTimeout(() => {
-                        document.querySelectorAll('#listaJurisprudencia .card').forEach((card, i) => {
-                            if (card.querySelector('.cl-juris-btn')) return;
-                            const j = DB.jurisprudencia[i];
-                            if (!j) return;
-                            const btn = document.createElement('button');
-                            btn.className = 'cl-juris-btn btn btn-sm';
-                            btn.style.cssText = 'background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;border:none;margin-left:6px;';
-                            btn.innerHTML = '<i class="fas fa-brain"></i> Analizar';
-                            btn.onclick = (e) => { e.stopPropagation(); clAnalizarJurisprudencia(j.id); };
-                            const deleteBtn = card.querySelector('.btn-d');
-                            if (deleteBtn) deleteBtn.insertAdjacentElement('beforebegin', btn);
-                            else card.appendChild(btn);
-                        });
-                    }, 100);
-                };
-                window.uiRenderJurisprudenciaAvanzada._clPatched = true;
-            }
-        }
+// Inyectar botón IA en cada sentencia de jurisprudencia
+function clInyectarBotonJuris() {
+    const origRender = window.uiRenderJurisprudenciaAvanzada;
+    if (origRender && !origRender._clPatched) {
+        window.uiRenderJurisprudenciaAvanzada = function () {
+            origRender();
+            // Agregar botón "Analizar con IA" a cada tarjeta
+            setTimeout(() => {
+                document.querySelectorAll('#listaJurisprudencia .card').forEach((card, i) => {
+                    if (card.querySelector('.cl-juris-btn')) return;
+                    const j = DB.jurisprudencia[i];
+                    if (!j) return;
+                    const btn = document.createElement('button');
+                    btn.className = 'cl-juris-btn btn btn-sm';
+                    btn.style.cssText = 'background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;border:none;margin-left:6px;';
+                    btn.innerHTML = '<i class="fas fa-brain"></i> Analizar';
+                    btn.onclick = (e) => { e.stopPropagation(); clAnalizarJurisprudencia(j.id); };
+                    const deleteBtn = card.querySelector('.btn-d');
+                    if (deleteBtn) deleteBtn.insertAdjacentElement('beforebegin', btn);
+                    else card.appendChild(btn);
+                });
+            }, 100);
+        };
+        window.uiRenderJurisprudenciaAvanzada._clPatched = true;
+    }
+}
 
-        // ═══════════════════════════════════════════════════════════════════
-        // SECCIÓN 7 — INICIALIZACIÓN
-        // ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+// SECCIÓN 7 — INICIALIZACIÓN
+// ═══════════════════════════════════════════════════════════════════
 
-        function clLegalInit() {
-            clInyectarBotonFlotante();
-            clInyectarBotonesCausa();
-            clInyectarBotonEstrategiaPro();
-            clInyectarBotonJuris();
-        }
+function clLegalInit() {
+    clInyectarBotonFlotante();
+    clInyectarBotonesCausa();
+    clInyectarBotonEstrategiaPro();
+    clInyectarBotonJuris();
+}
 
-        // Inicializar cuando el DOM esté listo
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', clLegalInit);
-        } else {
-            setTimeout(clLegalInit, 500);
-        }
+// Inicializar cuando el DOM esté listo
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', clLegalInit);
+} else {
+    setTimeout(clLegalInit, 500);
+}
 
-        // ═══════════════════════════════════════════════════════════════════
-        // SECCIÓN 8 — PANEL CLAUDE.AI EMBEBIDO (iframe flotante)
-        // Permite usar claude.ai directamente dentro de la app mientras
-        // se tiene acceso al contexto de la causa/despacho.
-        // ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+// SECCIÓN 8 — PANEL CLAUDE.AI EMBEBIDO (iframe flotante)
+// Permite usar claude.ai directamente dentro de la app mientras
+// se tiene acceso al contexto de la causa/despacho.
+// ═══════════════════════════════════════════════════════════════════
 
-        let _clIframeOpen = false;
-        let _clIframeMode = 'general'; // 'general' | 'juris' | 'escrito' | 'doctrina' | 'documento'
+let _clIframeOpen = false;
+let _clIframeMode = 'general'; // 'general' | 'juris' | 'escrito' | 'doctrina' | 'documento'
 
-        function clAbrirIframe(modo, contextoExtra) {
-            _clIframeMode = modo || 'general';
-            const existe = document.getElementById('cl-iframe-panel');
-            if (existe) {
-                existe.remove();
-                _clIframeOpen = false;
-            }
+function clAbrirIframe(modo, contextoExtra) {
+    _clIframeMode = modo || 'general';
+    const existe = document.getElementById('cl-iframe-panel');
+    if (existe) {
+        existe.remove();
+        _clIframeOpen = false;
+    }
 
-            // Si ya estaba abierto sin modo nuevo, solo cierra
-            if (!modo && !existe) {
-                _clIframeOpen = false;
-                return;
-            }
+    // Si ya estaba abierto sin modo nuevo, solo cierra
+    if (!modo && !existe) {
+        _clIframeOpen = false;
+        return;
+    }
 
-            _clIframeOpen = true;
-            _crearIframePanel(contextoExtra);
-        }
+    _clIframeOpen = true;
+    _crearIframePanel(contextoExtra);
+}
 
-        function clToggleIframe() {
-            const panel = document.getElementById('cl-iframe-panel');
-            if (panel) {
-                panel.remove();
-                _clIframeOpen = false;
-            } else {
-                _clIframeOpen = true;
-                _crearIframePanel();
-            }
-        }
+function clToggleIframe() {
+    const panel = document.getElementById('cl-iframe-panel');
+    if (panel) {
+        panel.remove();
+        _clIframeOpen = false;
+    } else {
+        _clIframeOpen = true;
+        _crearIframePanel();
+    }
+}
 
-        function _clContextoActual(modo) {
-            const pid   = typeof iaGetProvider === 'function' ? iaGetProvider() : 'claude';
-            const hoy   = new Date().toLocaleDateString('es-CL', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-            const base  = `Fecha: ${hoy} | Jurisdicción: Chile\nDespacho: ${(DB.causas||[]).length} causas · ${(DB.clientes||[]).length} clientes\n\n`;
+function _clContextoActual(modo) {
+    const pid = typeof iaGetProvider === 'function' ? iaGetProvider() : 'claude';
+    const hoy = new Date().toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const base = `Fecha: ${hoy} | Jurisdicción: Chile\nDespacho: ${(DB.causas || []).length} causas · ${(DB.clientes || []).length} clientes\n\n`;
 
-            const modos = {
-                juris: `Eres un experto en jurisprudencia chilena. Necesito análisis de fallos de la Corte Suprema y Cortes de Apelaciones de Chile.\n\n${base}`,
-                escrito: (() => {
-                    const causaId = parseInt(document.getElementById('esc-causa-sel')?.value);
-                    const causa   = causaId ? DB.causas.find(c => c.id === causaId) : null;
-                    const tipo    = document.getElementById('esc-tipo')?.selectedOptions?.[0]?.dataset?.label || '';
-                    const hechos  = document.getElementById('esc-hechos')?.value || '';
-                    return `Eres un abogado litigante chileno experto en redacción judicial.\nNecesito que redactes un escrito de tipo: "${tipo}".\n\n${base}` +
-                        (causa ? `Causa: ${causa.caratula} | Tribunal: ${causa.juzgado||'N/D'} | Tipo: ${causa.tipoProcedimiento}\nRama: ${causa.rama}\n` : '') +
-                        (hechos ? `\nHechos: ${hechos.substring(0,800)}` : '');
-                })(),
-                doctrina: `Eres un experto en doctrina jurídica chilena con conocimiento de Alessandri, Somarriva, Abeliuk y autores nacionales.\n\n${base}`,
-                documento: `Eres un asistente jurídico especializado en generar documentos legales formales en Chile.\n\n${base}`,
-                general: `Eres Bot AI, un asistente jurídico especializado en derecho chileno integrado en AppBogado.\n\n${base}`,
-            };
+    const modos = {
+        juris: `Eres un experto en jurisprudencia chilena. Necesito análisis de fallos de la Corte Suprema y Cortes de Apelaciones de Chile.\n\n${base}`,
+        escrito: (() => {
+            const causaId = parseInt(document.getElementById('esc-causa-sel')?.value);
+            const causa = causaId ? DB.causas.find(c => c.id === causaId) : null;
+            const tipo = document.getElementById('esc-tipo')?.selectedOptions?.[0]?.dataset?.label || '';
+            const hechos = document.getElementById('esc-hechos')?.value || '';
+            return `Eres un abogado litigante chileno experto en redacción judicial.\nNecesito que redactes un escrito de tipo: "${tipo}".\n\n${base}` +
+                (causa ? `Causa: ${causa.caratula} | Tribunal: ${causa.juzgado || 'N/D'} | Tipo: ${causa.tipoProcedimiento}\nRama: ${causa.rama}\n` : '') +
+                (hechos ? `\nHechos: ${hechos.substring(0, 800)}` : '');
+        })(),
+        doctrina: `Eres un experto en doctrina jurídica chilena con conocimiento de Alessandri, Somarriva, Abeliuk y autores nacionales.\n\n${base}`,
+        documento: `Eres un asistente jurídico especializado en generar documentos legales formales en Chile.\n\n${base}`,
+        general: `Eres Bot AI, un asistente jurídico especializado en derecho chileno integrado en AppBogado.\n\n${base}`,
+    };
 
-            return modos[modo] || modos.general;
-        }
+    return modos[modo] || modos.general;
+}
 
-        function _crearIframePanel(contextoExtra) {
-            const panel = document.createElement('div');
-            panel.id    = 'cl-iframe-panel';
+function _crearIframePanel(contextoExtra) {
+    const panel = document.createElement('div');
+    panel.id = 'cl-iframe-panel';
 
-            const titulosModo = {
-                juris:     '⚖ Jurisprudencia con Claude',
-                escrito:   '⚖ Redactar Escrito con Claude',
-                doctrina:  '⚖ Doctrina Legal con Claude',
-                documento: '⚖ Generar Documento con Claude',
-                general:   '⚖ Claude — Asistente Jurídico',
-            };
+    const titulosModo = {
+        juris: '⚖ Jurisprudencia con Claude',
+        escrito: '⚖ Redactar Escrito con Claude',
+        doctrina: '⚖ Doctrina Legal con Claude',
+        documento: '⚖ Generar Documento con Claude',
+        general: '⚖ Claude — Asistente Jurídico',
+    };
 
-            const contexto = _clContextoActual(_clIframeMode) + (contextoExtra ? '\n\n' + contextoExtra : '');
+    const contexto = _clContextoActual(_clIframeMode) + (contextoExtra ? '\n\n' + contextoExtra : '');
 
-            panel.innerHTML = `
+    panel.innerHTML = `
             <div class="cl-iframe-header">
                 <div class="cl-iframe-header-left">
                     <span style="font-size:1.1rem;">⚖</span>
@@ -892,7 +892,7 @@ Sé específico. Cita normativa chilena aplicable. Evita generalidades.`;
                         </button>
                     </div>
                 </div>
-                <div style="font-size:0.71rem; line-height:1.6; color:#374151; background:white; padding:10px; border-radius:6px; border:1px solid #e2e8f0; max-height:80px; overflow-y:auto; font-family:'IBM Plex Mono',monospace; white-space:pre-wrap;" id="cl-ctx-preview">${contexto.substring(0,400)}${contexto.length>400?'…':''}</div>
+                <div style="font-size:0.71rem; line-height:1.6; color:#374151; background:white; padding:10px; border-radius:6px; border:1px solid #e2e8f0; max-height:80px; overflow-y:auto; font-family:'IBM Plex Mono',monospace; white-space:pre-wrap;" id="cl-ctx-preview">${contexto.substring(0, 400)}${contexto.length > 400 ? '…' : ''}</div>
                 <div style="font-size:0.69rem; color:#6b7280; margin-top:6px;">
                     <strong>Pasos:</strong>
                     1. Clic en <strong>"Copiar contexto"</strong> ↑ &nbsp;
@@ -929,171 +929,171 @@ Sé específico. Cita normativa chilena aplicable. Evita generalidades.`;
             <!-- Accesos rápidos por modo -->
             <div class="cl-iframe-quickbar">
                 ${[
-                    ['general',   'fa-comments',      'Chat general'],
-                    ['juris',     'fa-book',          'Jurisprudencia'],
-                    ['escrito',   'fa-pen-nib',       'Escritos'],
-                    ['doctrina',  'fa-graduation-cap','Doctrina'],
-                    ['documento', 'fa-file-alt',      'Documentos'],
-                ].map(([m, ico, lbl]) => `
+            ['general', 'fa-comments', 'Chat general'],
+            ['juris', 'fa-book', 'Jurisprudencia'],
+            ['escrito', 'fa-pen-nib', 'Escritos'],
+            ['doctrina', 'fa-graduation-cap', 'Doctrina'],
+            ['documento', 'fa-file-alt', 'Documentos'],
+        ].map(([m, ico, lbl]) => `
                 <button onclick="clAbrirIframe('${m}')"
-                    class="cl-quick-btn ${_clIframeMode===m?'active':''}"
+                    class="cl-quick-btn ${_clIframeMode === m ? 'active' : ''}"
                     title="${lbl}">
                     <i class="fas ${ico}"></i>
                     <span>${lbl}</span>
                 </button>`).join('')}
             </div>`;
 
-            document.body.appendChild(panel);
+    document.body.appendChild(panel);
 
-            // Guardar contexto para copiar
-            panel._contexto = contexto;
+    // Guardar contexto para copiar
+    panel._contexto = contexto;
 
-            // Ocultar nota overlay cuando iframe carga exitosamente
-            const iframe = document.getElementById('cl-claude-iframe');
-            iframe.addEventListener('load', () => {
-                setTimeout(() => {
-                    const note = document.getElementById('cl-iframe-note');
-                    if (note) note.style.display = 'none';
-                }, 500);
-            });
-        }
+    // Ocultar nota overlay cuando iframe carga exitosamente
+    const iframe = document.getElementById('cl-claude-iframe');
+    iframe.addEventListener('load', () => {
+        setTimeout(() => {
+            const note = document.getElementById('cl-iframe-note');
+            if (note) note.style.display = 'none';
+        }, 500);
+    });
+}
 
-        let _clIframeExpanded = false;
-        function clResizeIframe() {
-            const panel = document.getElementById('cl-iframe-panel');
-            const ico   = document.getElementById('cl-resize-ico');
-            if (!panel) return;
-            _clIframeExpanded = !_clIframeExpanded;
-            if (_clIframeExpanded) {
-                panel.style.cssText += 'width:90vw !important; height:92vh !important; right:5vw !important; bottom:4vh !important;';
-                ico.className = 'fas fa-compress-alt';
-            } else {
-                panel.style.cssText = '';
-                ico.className = 'fas fa-expand-alt';
+let _clIframeExpanded = false;
+function clResizeIframe() {
+    const panel = document.getElementById('cl-iframe-panel');
+    const ico = document.getElementById('cl-resize-ico');
+    if (!panel) return;
+    _clIframeExpanded = !_clIframeExpanded;
+    if (_clIframeExpanded) {
+        panel.style.cssText += 'width:90vw !important; height:92vh !important; right:5vw !important; bottom:4vh !important;';
+        ico.className = 'fas fa-compress-alt';
+    } else {
+        panel.style.cssText = '';
+        ico.className = 'fas fa-expand-alt';
+    }
+}
+
+function clCopiarContextoIframe(modo, extra) {
+    const panel = document.getElementById('cl-iframe-panel');
+    const ctx = panel?._contexto || _clContextoActual(_clIframeMode);
+    const full = ctx + (extra ? '\n\n' + extra : '');
+    navigator.clipboard.writeText(full).then(() => {
+        if (typeof showSuccess === 'function') showSuccess('✅ Contexto copiado. Pégalo en claude.ai.');
+    }).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = full; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); ta.remove();
+        if (typeof showInfo === 'function') showInfo('Contexto copiado.');
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SECCIÓN 9 — GENERACIÓN DE DOCUMENTOS WORD + PDF
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Genera un documento Word (.docx) desde texto Markdown.
+ * Usa docx.js si está disponible (CDN), o descarga como .txt fallback.
+ */
+function clDescargarWord(titulo, contenido, nombreArchivo) {
+    if (typeof docx !== 'undefined') {
+        // docx.js disponible
+        _clGenerarDocxReal(titulo, contenido, nombreArchivo);
+    } else if (typeof JSZip !== 'undefined') {
+        _clGenerarDocxZip(titulo, contenido, nombreArchivo);
+    } else {
+        // Fallback: .txt
+        _clDescargarTxt(contenido, nombreArchivo + '.txt');
+        if (typeof showInfo === 'function') showInfo('Descargado como .txt (para Word, añade docx.js al proyecto).');
+    }
+}
+
+function _clGenerarDocxReal(titulo, contenido, nombreArchivo) {
+    try {
+        const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = docx;
+
+        const children = [];
+        // Título principal
+        children.push(new Paragraph({
+            heading: HeadingLevel.HEADING_1,
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: titulo, bold: true, color: '1a3a6b', size: 32 })],
+        }));
+        // Subtítulo fecha
+        children.push(new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 400 },
+            children: [new TextRun({ text: `Generado por AppBogado · ${new Date().toLocaleDateString('es-CL')}`, color: '64748b', size: 18 })],
+        }));
+
+        // Procesar líneas
+        contenido.split('\n').forEach(linea => {
+            const trimmed = linea.trim();
+            if (!trimmed) {
+                children.push(new Paragraph({ spacing: { before: 0, after: 80 } }));
+                return;
             }
-        }
+            // Detectar encabezados **Texto**
+            const esH = /^\*\*(.+)\*\*$/.test(trimmed);
+            const texto = esH ? trimmed.replace(/\*\*/g, '') : trimmed;
+            children.push(new Paragraph({
+                heading: esH ? HeadingLevel.HEADING_2 : undefined,
+                spacing: { before: esH ? 200 : 0, after: 80 },
+                children: [new TextRun({
+                    text: texto,
+                    bold: esH,
+                    color: esH ? '1a3a6b' : '1e293b',
+                    size: esH ? 24 : 22,
+                })],
+            }));
+        });
 
-        function clCopiarContextoIframe(modo, extra) {
-            const panel = document.getElementById('cl-iframe-panel');
-            const ctx   = panel?._contexto || _clContextoActual(_clIframeMode);
-            const full  = ctx + (extra ? '\n\n' + extra : '');
-            navigator.clipboard.writeText(full).then(() => {
-                if (typeof showSuccess === 'function') showSuccess('✅ Contexto copiado. Pégalo en claude.ai.');
-            }).catch(() => {
-                const ta = document.createElement('textarea');
-                ta.value = full; document.body.appendChild(ta); ta.select();
-                document.execCommand('copy'); ta.remove();
-                if (typeof showInfo === 'function') showInfo('Contexto copiado.');
-            });
-        }
+        const doc = new Document({
+            sections: [{
+                properties: {
+                    page: {
+                        size: { width: 11906, height: 16838 }, // A4
+                        margin: { top: 1440, right: 1440, bottom: 1440, left: 1800 },
+                    },
+                },
+                children,
+            }],
+        });
 
-        // ═══════════════════════════════════════════════════════════════════
-        // SECCIÓN 9 — GENERACIÓN DE DOCUMENTOS WORD + PDF
-        // ═══════════════════════════════════════════════════════════════════
+        Packer.toBlob(doc).then(blob => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = nombreArchivo + '.docx'; a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 5000);
+            if (typeof registrarEvento === 'function') registrarEvento(`Documento Word generado: ${nombreArchivo}`);
+        });
+    } catch (e) {
+        console.error('[clDescargarWord]', e);
+        _clDescargarTxt(contenido, nombreArchivo + '.txt');
+    }
+}
 
-        /**
-         * Genera un documento Word (.docx) desde texto Markdown.
-         * Usa docx.js si está disponible (CDN), o descarga como .txt fallback.
-         */
-        function clDescargarWord(titulo, contenido, nombreArchivo) {
-            if (typeof docx !== 'undefined') {
-                // docx.js disponible
-                _clGenerarDocxReal(titulo, contenido, nombreArchivo);
-            } else if (typeof JSZip !== 'undefined') {
-                _clGenerarDocxZip(titulo, contenido, nombreArchivo);
-            } else {
-                // Fallback: .txt
-                _clDescargarTxt(contenido, nombreArchivo + '.txt');
-                if (typeof showInfo === 'function') showInfo('Descargado como .txt (para Word, añade docx.js al proyecto).');
-            }
-        }
+function _clGenerarDocxZip(titulo, contenido, nombreArchivo) {
+    // Construir XML de Word mínimo válido
+    const lineas = contenido.split('\n');
+    const parrafos = lineas.map(l => {
+        const t = l.trim();
+        if (!t) return '<w:p><w:pPr><w:spacing w:after="80"/></w:pPr></w:p>';
+        const esH = /^\*\*(.+)\*\*$/.test(t);
+        const txt = t.replace(/\*\*/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const rPr = esH
+            ? '<w:rPr><w:b/><w:color w:val="1a3a6b"/><w:sz w:val="24"/></w:rPr>'
+            : '<w:rPr><w:sz w:val="22"/></w:rPr>';
+        const pPr = esH
+            ? '<w:pPr><w:shd w:val="clear" w:color="auto" w:fill="EEF3FF"/><w:spacing w:before="200" w:after="80"/></w:pPr>'
+            : '<w:pPr><w:spacing w:before="0" w:after="80"/></w:pPr>';
+        return `<w:p>${pPr}<w:r>${rPr}<w:t xml:space="preserve">${txt}</w:t></w:r></w:p>`;
+    }).join('');
 
-        function _clGenerarDocxReal(titulo, contenido, nombreArchivo) {
-            try {
-                const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = docx;
+    const tituloXml = titulo.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const fecha = new Date().toLocaleDateString('es-CL');
 
-                const children = [];
-                // Título principal
-                children.push(new Paragraph({
-                    heading: HeadingLevel.HEADING_1,
-                    alignment: AlignmentType.CENTER,
-                    children: [new TextRun({ text: titulo, bold: true, color: '1a3a6b', size: 32 })],
-                }));
-                // Subtítulo fecha
-                children.push(new Paragraph({
-                    alignment: AlignmentType.CENTER,
-                    spacing: { after: 400 },
-                    children: [new TextRun({ text: `Generado por AppBogado · ${new Date().toLocaleDateString('es-CL')}`, color: '64748b', size: 18 })],
-                }));
-
-                // Procesar líneas
-                contenido.split('\n').forEach(linea => {
-                    const trimmed = linea.trim();
-                    if (!trimmed) {
-                        children.push(new Paragraph({ spacing: { before: 0, after: 80 } }));
-                        return;
-                    }
-                    // Detectar encabezados **Texto**
-                    const esH = /^\*\*(.+)\*\*$/.test(trimmed);
-                    const texto = esH ? trimmed.replace(/\*\*/g, '') : trimmed;
-                    children.push(new Paragraph({
-                        heading: esH ? HeadingLevel.HEADING_2 : undefined,
-                        spacing: { before: esH ? 200 : 0, after: 80 },
-                        children: [new TextRun({
-                            text: texto,
-                            bold: esH,
-                            color: esH ? '1a3a6b' : '1e293b',
-                            size: esH ? 24 : 22,
-                        })],
-                    }));
-                });
-
-                const doc = new Document({
-                    sections: [{
-                        properties: {
-                            page: {
-                                size: { width: 11906, height: 16838 }, // A4
-                                margin: { top: 1440, right: 1440, bottom: 1440, left: 1800 },
-                            },
-                        },
-                        children,
-                    }],
-                });
-
-                Packer.toBlob(doc).then(blob => {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url; a.download = nombreArchivo + '.docx'; a.click();
-                    setTimeout(() => URL.revokeObjectURL(url), 5000);
-                    if (typeof registrarEvento === 'function') registrarEvento(`Documento Word generado: ${nombreArchivo}`);
-                });
-            } catch (e) {
-                console.error('[clDescargarWord]', e);
-                _clDescargarTxt(contenido, nombreArchivo + '.txt');
-            }
-        }
-
-        function _clGenerarDocxZip(titulo, contenido, nombreArchivo) {
-            // Construir XML de Word mínimo válido
-            const lineas = contenido.split('\n');
-            const parrafos = lineas.map(l => {
-                const t = l.trim();
-                if (!t) return '<w:p><w:pPr><w:spacing w:after="80"/></w:pPr></w:p>';
-                const esH = /^\*\*(.+)\*\*$/.test(t);
-                const txt = t.replace(/\*\*/g, '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-                const rPr = esH
-                    ? '<w:rPr><w:b/><w:color w:val="1a3a6b"/><w:sz w:val="24"/></w:rPr>'
-                    : '<w:rPr><w:sz w:val="22"/></w:rPr>';
-                const pPr = esH
-                    ? '<w:pPr><w:shd w:val="clear" w:color="auto" w:fill="EEF3FF"/><w:spacing w:before="200" w:after="80"/></w:pPr>'
-                    : '<w:pPr><w:spacing w:before="0" w:after="80"/></w:pPr>';
-                return `<w:p>${pPr}<w:r>${rPr}<w:t xml:space="preserve">${txt}</w:t></w:r></w:p>`;
-            }).join('');
-
-            const tituloXml = titulo.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-            const fecha = new Date().toLocaleDateString('es-CL');
-
-            const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
   xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -1116,56 +1116,56 @@ Sé específico. Cita normativa chilena aplicable. Evita generalidades.`;
   </w:body>
 </w:document>`;
 
-            const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
 </Types>`;
-            const relsRoot = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    const relsRoot = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
 </Relationships>`;
-            const relsWord = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    const relsWord = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>`;
 
-            const zip = new JSZip();
-            zip.file('[Content_Types].xml', contentTypes);
-            zip.file('_rels/.rels', relsRoot);
-            zip.file('word/document.xml', documentXml);
-            zip.file('word/_rels/document.xml.rels', relsWord);
-            zip.generateAsync({ type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
-                .then(blob => {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url; a.download = nombreArchivo + '.docx'; a.click();
-                    setTimeout(() => URL.revokeObjectURL(url), 5000);
-                    if (typeof registrarEvento === 'function') registrarEvento(`Documento Word descargado: ${nombreArchivo}`);
-                });
-        }
+    const zip = new JSZip();
+    zip.file('[Content_Types].xml', contentTypes);
+    zip.file('_rels/.rels', relsRoot);
+    zip.file('word/document.xml', documentXml);
+    zip.file('word/_rels/document.xml.rels', relsWord);
+    zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
+        .then(blob => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = nombreArchivo + '.docx'; a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 5000);
+            if (typeof registrarEvento === 'function') registrarEvento(`Documento Word descargado: ${nombreArchivo}`);
+        });
+}
 
-        /**
-         * Genera un PDF desde contenido texto usando window.print() con estilos custom.
-         * No requiere dependencias externas.
-         */
-        function clDescargarPDF(titulo, contenido, nombreArchivo) {
-            const ventana = window.open('', '_blank', 'width=900,height=700');
-            if (!ventana) {
-                if (typeof showError === 'function') showError('Bloqueador de popups activo. Permite popups para generar PDF.');
-                return;
-            }
-            const fecha = new Date().toLocaleDateString('es-CL', { year:'numeric', month:'long', day:'numeric' });
-            const htmlContenido = contenido
-                .split('\n')
-                .map(l => {
-                    const t = l.trim();
-                    if (!t) return '<p class="espacio"></p>';
-                    const esH = /^\*\*(.+)\*\*$/.test(t);
-                    const txt = t.replace(/\*\*/g, '');
-                    return esH ? `<h2>${txt}</h2>` : `<p>${txt}</p>`;
-                }).join('');
+/**
+ * Genera un PDF desde contenido texto usando window.print() con estilos custom.
+ * No requiere dependencias externas.
+ */
+function clDescargarPDF(titulo, contenido, nombreArchivo) {
+    const ventana = window.open('', '_blank', 'width=900,height=700');
+    if (!ventana) {
+        if (typeof showError === 'function') showError('Bloqueador de popups activo. Permite popups para generar PDF.');
+        return;
+    }
+    const fecha = new Date().toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' });
+    const htmlContenido = contenido
+        .split('\n')
+        .map(l => {
+            const t = l.trim();
+            if (!t) return '<p class="espacio"></p>';
+            const esH = /^\*\*(.+)\*\*$/.test(t);
+            const txt = t.replace(/\*\*/g, '');
+            return esH ? `<h2>${txt}</h2>` : `<p>${txt}</p>`;
+        }).join('');
 
-            ventana.document.write(`<!DOCTYPE html>
+    ventana.document.write(`<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -1212,34 +1212,34 @@ Sé específico. Cita normativa chilena aplicable. Evita generalidades.`;
 </div>
 </body>
 </html>`);
-            ventana.document.close();
-            if (typeof registrarEvento === 'function') registrarEvento(`PDF generado: ${nombreArchivo}`);
-        }
+    ventana.document.close();
+    if (typeof registrarEvento === 'function') registrarEvento(`PDF generado: ${nombreArchivo}`);
+}
 
-        function _clDescargarTxt(contenido, nombre) {
-            const blob = new Blob([contenido], { type:'text/plain;charset=utf-8' });
-            const url  = URL.createObjectURL(blob);
-            const a    = document.createElement('a');
-            a.href = url; a.download = nombre; a.click();
-            setTimeout(() => URL.revokeObjectURL(url), 5000);
-        }
+function _clDescargarTxt(contenido, nombre) {
+    const blob = new Blob([contenido], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nombre; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
 
-        // ═══════════════════════════════════════════════════════════════════
-        // SECCIÓN 10 — MÓDULOS IA: JURISPRUDENCIA, DOCTRINA, DOCUMENTOS
-        // Todos usan iaCall() del motor unificado en 12-ia-providers.js
-        // ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+// SECCIÓN 10 — MÓDULOS IA: JURISPRUDENCIA, DOCTRINA, DOCUMENTOS
+// Todos usan iaCall() del motor unificado en 12-ia-providers.js
+// ═══════════════════════════════════════════════════════════════════
 
-        // ── 10.1 Modal genérico de consulta IA ───────────────────────────
-        function _clAbrirModalIA(cfg) {
-            // cfg: { titulo, placeholder, prompt_fn, tieneDescarga, nombreArchivo, promptFijo }
-            document.getElementById('cl-modal-ia-root')?.remove();
+// ── 10.1 Modal genérico de consulta IA ───────────────────────────
+function _clAbrirModalIA(cfg) {
+    // cfg: { titulo, placeholder, prompt_fn, tieneDescarga, nombreArchivo, promptFijo }
+    document.getElementById('cl-modal-ia-root')?.remove();
 
-            const root = document.createElement('div');
-            root.id = 'cl-modal-ia-root';
-            root.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:10001;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(4px);';
-            root.onclick = e => { if (e.target === root) root.remove(); };
+    const root = document.createElement('div');
+    root.id = 'cl-modal-ia-root';
+    root.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:10001;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(4px);';
+    root.onclick = e => { if (e.target === root) root.remove(); };
 
-            root.innerHTML = `
+    root.innerHTML = `
 <div style="background:white;border-radius:18px;width:100%;max-width:720px;max-height:90vh;overflow-y:auto;box-shadow:0 32px 64px rgba(0,0,0,0.25);display:flex;flex-direction:column;">
   <!-- Header -->
   <div style="padding:18px 22px 0;display:flex;align-items:flex-start;gap:12px;flex-shrink:0;">
@@ -1265,7 +1265,7 @@ Sé específico. Cita normativa chilena aplicable. Evita generalidades.`;
         style="flex:1;padding:10px;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:white;border:none;border-radius:9px;cursor:pointer;font-size:0.83rem;font-weight:700;">
         <i class="fas fa-paper-plane"></i> Consultar con IA
       </button>
-      <button onclick="clAbrirIframe('${cfg.modo||'general'}')"
+      <button onclick="clAbrirIframe('${cfg.modo || 'general'}')"
         style="padding:10px 14px;background:#faf5ff;color:#7c3aed;border:1px solid #c4b5fd;border-radius:9px;cursor:pointer;font-size:0.82rem;font-weight:600;" title="Abrir claude.ai embebido">
         <i class="fas fa-external-link-alt"></i> Claude.ai
       </button>
@@ -1300,86 +1300,86 @@ Sé específico. Cita normativa chilena aplicable. Evita generalidades.`;
   </div>
 </div>`;
 
-            document.body.appendChild(root);
+    document.body.appendChild(root);
 
-            // Cerrar con Escape
-            const onEsc = e => { if (e.key === 'Escape') { root.remove(); document.removeEventListener('keydown', onEsc); } };
-            document.addEventListener('keydown', onEsc);
+    // Cerrar con Escape
+    const onEsc = e => { if (e.key === 'Escape') { root.remove(); document.removeEventListener('keydown', onEsc); } };
+    document.addEventListener('keydown', onEsc);
 
-            let _ultimaRespuesta = '';
-            const _titulo   = cfg.titulo;
-            const _archivo  = cfg.nombreArchivo || 'documento-ia';
+    let _ultimaRespuesta = '';
+    const _titulo = cfg.titulo;
+    const _archivo = cfg.nombreArchivo || 'documento-ia';
 
-            window._clModalIAEnviar = async () => {
-                const input = document.getElementById('cl-modal-ia-input');
-                const btn   = document.getElementById('cl-modal-ia-btn');
-                const resEl = document.getElementById('cl-modal-ia-resultado');
-                const txtEl = document.getElementById('cl-modal-ia-texto');
-                const texto = input?.value.trim();
+    window._clModalIAEnviar = async () => {
+        const input = document.getElementById('cl-modal-ia-input');
+        const btn = document.getElementById('cl-modal-ia-btn');
+        const resEl = document.getElementById('cl-modal-ia-resultado');
+        const txtEl = document.getElementById('cl-modal-ia-texto');
+        const texto = input?.value.trim();
 
-                if (!texto && !cfg.promptFijo) { if (typeof showError === 'function') showError('Escribe tu consulta primero.'); return; }
+        if (!texto && !cfg.promptFijo) { if (typeof showError === 'function') showError('Escribe tu consulta primero.'); return; }
 
-                btn.disabled = true;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Consultando IA…';
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Consultando IA…';
 
-                try {
-                    const respuesta = await cfg.prompt_fn(texto);
-                    _ultimaRespuesta = respuesta;
-                    resEl.style.display = 'block';
-                    if (txtEl) { txtEl.textContent = respuesta; txtEl.dataset.resp = respuesta; }
-                } catch (e) {
-                    if (typeof showError === 'function') showError('Error IA: ' + e.message);
-                } finally {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fas fa-paper-plane"></i> Consultar con IA';
-                }
-            };
-
-            window._clModalIACopiar = () => {
-                const txt = _ultimaRespuesta || document.getElementById('cl-modal-ia-texto')?.textContent || '';
-                navigator.clipboard.writeText(txt).then(() => {
-                    if (typeof showSuccess === 'function') showSuccess('✅ Copiado al portapapeles.');
-                });
-            };
-
-            window._clModalIAWord = () => {
-                const txt = _ultimaRespuesta || '';
-                if (!txt.trim()) { if (typeof showError === 'function') showError('Primero genera una respuesta.'); return; }
-                clDescargarWord(_titulo, txt, _archivo);
-                if (typeof showSuccess === 'function') showSuccess('✅ Generando Word…');
-            };
-
-            window._clModalIAPDF = () => {
-                const txt = _ultimaRespuesta || '';
-                if (!txt.trim()) { if (typeof showError === 'function') showError('Primero genera una respuesta.'); return; }
-                clDescargarPDF(_titulo, txt, _archivo);
-            };
-
-            window._clModalIABitacora = () => {
-                const txt = _ultimaRespuesta || '';
-                if (!txt.trim()) return;
-                if (typeof registrarEvento === 'function') registrarEvento(`[IA] ${_titulo}: ${txt.substring(0, 120)}…`);
-                if (typeof showSuccess === 'function') showSuccess('✅ Guardado en bitácora.');
-            };
-
-            if (cfg.promptFijo) setTimeout(() => document.getElementById('cl-modal-ia-btn')?.click(), 200);
-            setTimeout(() => document.getElementById('cl-modal-ia-input')?.focus(), 100);
+        try {
+            const respuesta = await cfg.prompt_fn(texto);
+            _ultimaRespuesta = respuesta;
+            resEl.style.display = 'block';
+            if (txtEl) { txtEl.textContent = respuesta; txtEl.dataset.resp = respuesta; }
+        } catch (e) {
+            if (typeof showError === 'function') showError('Error IA: ' + e.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-paper-plane"></i> Consultar con IA';
         }
+    };
 
-        // ── 10.2 Jurisprudencia ───────────────────────────────────────────
-        function clAbrirBusquedaJuris() {
-            _clAbrirModalIA({
-                titulo: 'Búsqueda de Jurisprudencia Chilena',
-                placeholder: 'Ej: ¿Cuál es la jurisprudencia de la Corte Suprema sobre cláusulas abusivas en contratos de adhesión?\n\nEj: Fallos sobre despido indirecto en el Código del Trabajo',
-                modo: 'juris',
-                tieneDescarga: true,
-                nombreArchivo: 'jurisprudencia-ia-' + Date.now(),
-                prompt_fn: async (consulta) => {
-                    const jurisCtx = (DB.jurisprudencia||[]).slice(0,12).map(j =>
-                        `[${j.rol||'S/R'}] ${j.tribunal} — ${j.materia}: ${j.temaCentral||j.holding||''}`
-                    ).join('\n');
+    window._clModalIACopiar = () => {
+        const txt = _ultimaRespuesta || document.getElementById('cl-modal-ia-texto')?.textContent || '';
+        navigator.clipboard.writeText(txt).then(() => {
+            if (typeof showSuccess === 'function') showSuccess('✅ Copiado al portapapeles.');
+        });
+    };
 
-                    return iaCall(`Eres un experto en jurisprudencia chilena.
+    window._clModalIAWord = () => {
+        const txt = _ultimaRespuesta || '';
+        if (!txt.trim()) { if (typeof showError === 'function') showError('Primero genera una respuesta.'); return; }
+        clDescargarWord(_titulo, txt, _archivo);
+        if (typeof showSuccess === 'function') showSuccess('✅ Generando Word…');
+    };
+
+    window._clModalIAPDF = () => {
+        const txt = _ultimaRespuesta || '';
+        if (!txt.trim()) { if (typeof showError === 'function') showError('Primero genera una respuesta.'); return; }
+        clDescargarPDF(_titulo, txt, _archivo);
+    };
+
+    window._clModalIABitacora = () => {
+        const txt = _ultimaRespuesta || '';
+        if (!txt.trim()) return;
+        if (typeof registrarEvento === 'function') registrarEvento(`[IA] ${_titulo}: ${txt.substring(0, 120)}…`);
+        if (typeof showSuccess === 'function') showSuccess('✅ Guardado en bitácora.');
+    };
+
+    if (cfg.promptFijo) setTimeout(() => document.getElementById('cl-modal-ia-btn')?.click(), 200);
+    setTimeout(() => document.getElementById('cl-modal-ia-input')?.focus(), 100);
+}
+
+// ── 10.2 Jurisprudencia ───────────────────────────────────────────
+function clAbrirBusquedaJuris() {
+    _clAbrirModalIA({
+        titulo: 'Búsqueda de Jurisprudencia Chilena',
+        placeholder: 'Ej: ¿Cuál es la jurisprudencia de la Corte Suprema sobre cláusulas abusivas en contratos de adhesión?\n\nEj: Fallos sobre despido indirecto en el Código del Trabajo',
+        modo: 'juris',
+        tieneDescarga: true,
+        nombreArchivo: 'jurisprudencia-ia-' + Date.now(),
+        prompt_fn: async (consulta) => {
+            const jurisCtx = (DB.jurisprudencia || []).slice(0, 12).map(j =>
+                `[${j.rol || 'S/R'}] ${j.tribunal} — ${j.materia}: ${j.temaCentral || j.holding || ''}`
+            ).join('\n');
+
+            return iaCall(`Eres un experto en jurisprudencia chilena.
 Jurisdicción: Chile. Responde en español formal. Cita ROL y tribunal cuando sea posible.
 
 CONSULTA: ${consulta}
@@ -1392,20 +1392,20 @@ Proporciona:
 **3. TENDENCIA JURISPRUDENCIAL** — favorable / desfavorable / contradictoria
 **4. NORMAS APLICADAS** — artículos de ley más citados
 **5. CONCLUSIÓN PRÁCTICA** — recomendación concreta (3 líneas)`);
-                },
-            });
-        }
+        },
+    });
+}
 
-        // ── 10.3 Doctrina ─────────────────────────────────────────────────
-        function clAbrirDoctrina() {
-            _clAbrirModalIA({
-                titulo: 'Consulta de Doctrina Legal Chilena',
-                placeholder: 'Ej: Explica la lesión enorme en el derecho civil chileno y cuándo puede alegarse\n\nEj: Naturaleza jurídica del contrato de promesa según Abeliuk\n\nEj: Doctrina sobre la responsabilidad extracontractual del Estado',
-                modo: 'doctrina',
-                tieneDescarga: true,
-                nombreArchivo: 'doctrina-ia-' + Date.now(),
-                prompt_fn: async (tema) => {
-                    return iaCall(`Eres un experto en doctrina jurídica chilena. Conoces profundamente los textos de Alessandri, Somarriva, Abeliuk, Meza Barros, Claro Solar y otros autores nacionales.
+// ── 10.3 Doctrina ─────────────────────────────────────────────────
+function clAbrirDoctrina() {
+    _clAbrirModalIA({
+        titulo: 'Consulta de Doctrina Legal Chilena',
+        placeholder: 'Ej: Explica la lesión enorme en el derecho civil chileno y cuándo puede alegarse\n\nEj: Naturaleza jurídica del contrato de promesa según Abeliuk\n\nEj: Doctrina sobre la responsabilidad extracontractual del Estado',
+        modo: 'doctrina',
+        tieneDescarga: true,
+        nombreArchivo: 'doctrina-ia-' + Date.now(),
+        prompt_fn: async (tema) => {
+            return iaCall(`Eres un experto en doctrina jurídica chilena. Conoces profundamente los textos de Alessandri, Somarriva, Abeliuk, Meza Barros, Claro Solar y otros autores nacionales.
 
 CONSULTA DOCTRINAL: ${tema}
 Jurisdicción: Chile. Responde en español formal y técnico.
@@ -1417,22 +1417,22 @@ Jurisdicción: Chile. Responde en español formal y técnico.
 **5. DOCTRINA COMPARADA** — breve referencia a España, Argentina u otros sistemas romano-germánicos
 **6. APLICACIÓN PRÁCTICA** — casos frecuentes y consejos para el litigante
 **7. JURISPRUDENCIA RELEVANTE** — fallos chilenos más citados sobre la materia`);
-                },
-            });
-        }
+        },
+    });
+}
 
-        // ── 10.4 Análisis estratégico ─────────────────────────────────────
-        function clAbrirEstrategia(causaId) {
-            const causa = causaId ? DB.causas.find(c => c.id == causaId) : null;
-            _clAbrirModalIA({
-                titulo: causa ? `Estrategia: ${causa.caratula}` : 'Análisis Estratégico con IA',
-                placeholder: 'Describe la situación o pregunta estratégica:\n\nEj: El demandado acaba de presentar recurso de nulidad. ¿Qué hacemos?\nEj: ¿Conviene transigir o llegar a sentencia?\nEj: ¿Es viable la casación en el fondo en este caso?',
-                modo: 'doctrina',
-                tieneDescarga: true,
-                nombreArchivo: 'estrategia-ia-' + Date.now(),
-                prompt_fn: async (situacion) => {
-                    const ctx = causa ? clBuildCausaContext(causa.id) : clBuildContext({ causas: true });
-                    return iaCall(`${ctx}
+// ── 10.4 Análisis estratégico ─────────────────────────────────────
+function clAbrirEstrategia(causaId) {
+    const causa = causaId ? DB.causas.find(c => c.id == causaId) : null;
+    _clAbrirModalIA({
+        titulo: causa ? `Estrategia: ${causa.caratula}` : 'Análisis Estratégico con IA',
+        placeholder: 'Describe la situación o pregunta estratégica:\n\nEj: El demandado acaba de presentar recurso de nulidad. ¿Qué hacemos?\nEj: ¿Conviene transigir o llegar a sentencia?\nEj: ¿Es viable la casación en el fondo en este caso?',
+        modo: 'doctrina',
+        tieneDescarga: true,
+        nombreArchivo: 'estrategia-ia-' + Date.now(),
+        prompt_fn: async (situacion) => {
+            const ctx = causa ? clBuildCausaContext(causa.id) : clBuildContext({ causas: true });
+            return iaCall(`${ctx}
 
 SITUACIÓN A ANALIZAR: ${situacion}
 
@@ -1444,33 +1444,33 @@ Análisis estratégico legal en Chile:
 **5. PLAZOS CRÍTICOS** — con artículo de ley que los rige
 **6. PRUEBA NECESARIA** — qué debe acreditarse y cómo
 **7. PROBABILIDAD DE ÉXITO** — estimación honesta basada en jurisprudencia y doctrina`);
-                },
-            });
-        }
+        },
+    });
+}
 
-        // ── 10.5 Generar informe Word/PDF de causa ────────────────────────
-        async function clGenerarInformeIA(causaId) {
-            const selId = causaId || document.getElementById('inf-causa-sel')?.value;
-            const causa = selId ? DB.causas.find(c => c.id == selId) : null;
-            if (!causa) { if (typeof showError === 'function') showError('Selecciona una causa primero.'); return; }
+// ── 10.5 Generar informe Word/PDF de causa ────────────────────────
+async function clGenerarInformeIA(causaId) {
+    const selId = causaId || document.getElementById('inf-causa-sel')?.value;
+    const causa = selId ? DB.causas.find(c => c.id == selId) : null;
+    if (!causa) { if (typeof showError === 'function') showError('Selecciona una causa primero.'); return; }
 
-            const alertas = (DB.alertas||[])
-                .filter(a => a.causaId == causa.id && a.estado === 'activa')
-                .map(a => `• ${a.fecha||''}: ${a.mensaje||a.titulo||''}`)
-                .join('\n') || '• Sin alertas activas.';
+    const alertas = (DB.alertas || [])
+        .filter(a => a.causaId == causa.id && a.estado === 'activa')
+        .map(a => `• ${a.fecha || ''}: ${a.mensaje || a.titulo || ''}`)
+        .join('\n') || '• Sin alertas activas.';
 
-            const etapas = (causa.etapasProcesales||[]).slice(-6)
-                .map(e => `• [${e.completada?'✓':'○'}] ${e.nombre||e.etapa||''} ${e.fecha?'— '+new Date(e.fecha).toLocaleDateString('es-CL'):''}`)
-                .join('\n') || '• Sin etapas registradas.';
+    const etapas = (causa.etapasProcesales || []).slice(-6)
+        .map(e => `• [${e.completada ? '✓' : '○'}] ${e.nombre || e.etapa || ''} ${e.fecha ? '— ' + new Date(e.fecha).toLocaleDateString('es-CL') : ''}`)
+        .join('\n') || '• Sin etapas registradas.';
 
-            _clAbrirModalIA({
-                titulo: `Informe: ${causa.caratula}`,
-                placeholder: 'Instrucciones adicionales (opcional): Ej: Tono para cliente no abogado. Enfatizar riesgos. Incluir propuesta honorarios.',
-                modo: 'documento',
-                tieneDescarga: true,
-                nombreArchivo: 'informe-' + causa.caratula.replace(/\s+/g,'-').substring(0,30) + '-' + new Date().toISOString().split('T')[0],
-                prompt_fn: async (instrucciones) => {
-                    return iaCall(`${clBuildCausaContext(causa.id)}
+    _clAbrirModalIA({
+        titulo: `Informe: ${causa.caratula}`,
+        placeholder: 'Instrucciones adicionales (opcional): Ej: Tono para cliente no abogado. Enfatizar riesgos. Incluir propuesta honorarios.',
+        modo: 'documento',
+        tieneDescarga: true,
+        nombreArchivo: 'informe-' + causa.caratula.replace(/\s+/g, '-').substring(0, 30) + '-' + new Date().toISOString().split('T')[0],
+        prompt_fn: async (instrucciones) => {
+            return iaCall(`${clBuildCausaContext(causa.id)}
 
 ALERTAS ACTIVAS:
 ${alertas}
@@ -1489,25 +1489,25 @@ Redacta un informe ejecutivo profesional con estas secciones:
 **7. CONCLUSIÓN**
 
 Fecha: ${new Date().toLocaleDateString('es-CL')} · Tono profesional, adecuado para presentar al cliente.`);
-                },
-            });
-        }
+        },
+    });
+}
 
-        // ── 10.6 Mejorar escrito actual ───────────────────────────────────
-        function clMejorarEscritoActual() {
-            const borrador = typeof _escritoActual !== 'undefined' ? _escritoActual.texto : '';
-            if (!borrador?.trim()) {
-                if (typeof showError === 'function') showError('Primero genera un escrito en el Generador de Escritos.');
-                return;
-            }
-            _clAbrirModalIA({
-                titulo: 'Mejorar Escrito con IA',
-                placeholder: 'Qué mejorar:\n\nEj: Fortalecer los argumentos de derecho. Agregar jurisprudencia reciente. Mejorar la petición subsidiaria.',
-                modo: 'escrito',
-                tieneDescarga: true,
-                nombreArchivo: 'escrito-mejorado-' + Date.now(),
-                prompt_fn: async (instrucciones) => {
-                    return iaCall(`Eres un abogado litigante chileno experto. Revisa y mejora el siguiente escrito judicial.
+// ── 10.6 Mejorar escrito actual ───────────────────────────────────
+function clMejorarEscritoActual() {
+    const borrador = typeof _escritoActual !== 'undefined' ? _escritoActual.texto : '';
+    if (!borrador?.trim()) {
+        if (typeof showError === 'function') showError('Primero genera un escrito en el Generador de Escritos.');
+        return;
+    }
+    _clAbrirModalIA({
+        titulo: 'Mejorar Escrito con IA',
+        placeholder: 'Qué mejorar:\n\nEj: Fortalecer los argumentos de derecho. Agregar jurisprudencia reciente. Mejorar la petición subsidiaria.',
+        modo: 'escrito',
+        tieneDescarga: true,
+        nombreArchivo: 'escrito-mejorado-' + Date.now(),
+        prompt_fn: async (instrucciones) => {
+            return iaCall(`Eres un abogado litigante chileno experto. Revisa y mejora el siguiente escrito judicial.
 
 BORRADOR:
 ---
@@ -1517,20 +1517,20 @@ ${borrador.substring(0, 10000)}
 INSTRUCCIONES: ${instrucciones || 'Mejorar redacción, precisión jurídica y completar citas de artículos legales.'}
 
 Devuelve el texto COMPLETO mejorado, listo para presentar. Mantén el formato judicial chileno estándar.`);
-                },
-            });
-        }
+        },
+    });
+}
 
-        // ── 10.7 Resumir documento pegado ────────────────────────────────
-        function clResumirDocumento() {
-            _clAbrirModalIA({
-                titulo: 'Resumir Documento Legal con IA',
-                placeholder: 'Pega aquí el texto del documento legal (demanda, contrato, sentencia, resolución)…',
-                modo: 'documento',
-                tieneDescarga: true,
-                nombreArchivo: 'resumen-doc-' + Date.now(),
-                prompt_fn: async (texto) => {
-                    return iaCall(`Resume y estructura este documento legal chileno:
+// ── 10.7 Resumir documento pegado ────────────────────────────────
+function clResumirDocumento() {
+    _clAbrirModalIA({
+        titulo: 'Resumir Documento Legal con IA',
+        placeholder: 'Pega aquí el texto del documento legal (demanda, contrato, sentencia, resolución)…',
+        modo: 'documento',
+        tieneDescarga: true,
+        nombreArchivo: 'resumen-doc-' + Date.now(),
+        prompt_fn: async (texto) => {
+            return iaCall(`Resume y estructura este documento legal chileno:
 
 ---
 ${texto.substring(0, 14000)}
@@ -1544,18 +1544,18 @@ ${texto.substring(0, 14000)}
 **6. PETICIONES CONCRETAS**
 **7. OBSERVACIONES** (puntos críticos)
 **8. RESPUESTA RECOMENDADA** (si aplica)`);
-                },
-            });
-        }
+        },
+    });
+}
 
-        // ═══════════════════════════════════════════════════════════════════
-        // SECCIÓN 11 — CSS EMBEBIDO PARA TODOS LOS COMPONENTES NUEVOS
-        // ═══════════════════════════════════════════════════════════════════
-        (function _clInjectStyles() {
-            if (document.getElementById('cl-legal-styles-v2')) return;
-            const style = document.createElement('style');
-            style.id = 'cl-legal-styles-v2';
-            style.textContent = `
+// ═══════════════════════════════════════════════════════════════════
+// SECCIÓN 11 — CSS EMBEBIDO PARA TODOS LOS COMPONENTES NUEVOS
+// ═══════════════════════════════════════════════════════════════════
+(function _clInjectStyles() {
+    if (document.getElementById('cl-legal-styles-v2')) return;
+    const style = document.createElement('style');
+    style.id = 'cl-legal-styles-v2';
+    style.textContent = `
 
 /* ── Panel iframe Claude.ai ─────────────────────────────────── */
 #cl-iframe-panel {
@@ -1734,69 +1734,69 @@ ${texto.substring(0, 14000)}
     flex-wrap: wrap;
 }
             `;
-            document.head.appendChild(style);
-        })();
+    document.head.appendChild(style);
+})();
 
-        // ═══════════════════════════════════════════════════════════════════
-        // SECCIÓN 12 — INYECCIÓN DE BOTONES IA EN MÓDULOS EXISTENTES
-        // ═══════════════════════════════════════════════════════════════════
-        function _clInyectarBarrasIA() {
+// ═══════════════════════════════════════════════════════════════════
+// SECCIÓN 12 — INYECCIÓN DE BOTONES IA EN MÓDULOS EXISTENTES
+// ═══════════════════════════════════════════════════════════════════
+function _clInyectarBarrasIA() {
 
-            // ── Botón flotante de Claude.ai iframe ──
-            if (!document.getElementById('cl-fab-iframe')) {
-                const fab = document.createElement('button');
-                fab.id = 'cl-fab-iframe';
-                fab.innerHTML = '<i class="fas fa-robot"></i> Claude.ai';
-                fab.title = 'Abrir claude.ai embebido';
-                fab.onclick = () => clToggleIframe();
-                document.body.appendChild(fab);
-            }
+    // ── Botón flotante de Claude.ai iframe ──
+    if (!document.getElementById('cl-fab-iframe')) {
+        const fab = document.createElement('button');
+        fab.id = 'cl-fab-iframe';
+        fab.innerHTML = '<i class="fas fa-robot"></i> Claude.ai';
+        fab.title = 'Abrir claude.ai embebido';
+        fab.onclick = () => clToggleIframe();
+        document.body.appendChild(fab);
+    }
 
-            // ── Escritos: barra de IA adicional ──
-            const escTopRight = document.querySelector('.esc-topbar-right');
-            if (escTopRight && !document.getElementById('cl-esc-mejorar-btn')) {
-                const sep = document.createElement('div');
-                sep.style.cssText = 'width:1px;height:20px;background:#e2e8f0;margin:0 2px;';
-                const btn1 = document.createElement('button');
-                btn1.id = 'cl-esc-mejorar-btn';
-                btn1.className = 'btn btn-sm';
-                btn1.style.cssText = 'background:#faf5ff;color:#7c3aed;border:1px solid #c4b5fd;';
-                btn1.innerHTML = '<i class="fas fa-magic"></i> Mejorar con IA';
-                btn1.onclick = () => clMejorarEscritoActual();
-                const btn2 = document.createElement('button');
-                btn2.className = 'btn btn-sm';
-                btn2.style.cssText = 'background:linear-gradient(135deg,#7c3aed,#6d28d9);color:white;border:none;';
-                btn2.innerHTML = '<i class="fas fa-external-link-alt"></i> Claude.ai';
-                btn2.onclick = () => clAbrirIframe('escrito');
-                escTopRight.appendChild(sep);
-                escTopRight.appendChild(btn1);
-                escTopRight.appendChild(btn2);
-            }
+    // ── Escritos: barra de IA adicional ──
+    const escTopRight = document.querySelector('.esc-topbar-right');
+    if (escTopRight && !document.getElementById('cl-esc-mejorar-btn')) {
+        const sep = document.createElement('div');
+        sep.style.cssText = 'width:1px;height:20px;background:#e2e8f0;margin:0 2px;';
+        const btn1 = document.createElement('button');
+        btn1.id = 'cl-esc-mejorar-btn';
+        btn1.className = 'btn btn-sm';
+        btn1.style.cssText = 'background:#faf5ff;color:#7c3aed;border:1px solid #c4b5fd;';
+        btn1.innerHTML = '<i class="fas fa-magic"></i> Mejorar con IA';
+        btn1.onclick = () => clMejorarEscritoActual();
+        const btn2 = document.createElement('button');
+        btn2.className = 'btn btn-sm';
+        btn2.style.cssText = 'background:linear-gradient(135deg,#7c3aed,#6d28d9);color:white;border:none;';
+        btn2.innerHTML = '<i class="fas fa-external-link-alt"></i> Claude.ai';
+        btn2.onclick = () => clAbrirIframe('escrito');
+        escTopRight.appendChild(sep);
+        escTopRight.appendChild(btn1);
+        escTopRight.appendChild(btn2);
+    }
 
-            // ── Jurisprudencia: toolbar IA ──
-            const jurisList = document.getElementById('juris-list');
-            if (jurisList && !document.getElementById('cl-juris-toolbar')) {
-                const bar = document.createElement('div');
-                bar.id = 'cl-juris-toolbar';
-                bar.className = 'cl-ia-toolbar';
-                bar.innerHTML = `
+    // ── Jurisprudencia: toolbar IA ──
+    const jurisList = document.getElementById('juris-list');
+    if (jurisList && !document.getElementById('cl-juris-toolbar')) {
+        const bar = document.createElement('div');
+        bar.id = 'cl-juris-toolbar';
+        bar.className = 'cl-ia-toolbar';
+        bar.innerHTML = `
                     <button class="cl-ia-toolbar-btn primary" onclick="clAbrirBusquedaJuris()">
                         <i class="fas fa-robot"></i> Buscar jurisprudencia con IA
                     </button>
                     <button class="cl-ia-toolbar-btn secondary" onclick="clAbrirIframe('juris')">
                         <i class="fas fa-external-link-alt"></i> Abrir Claude.ai
                     </button>`;
-                jurisList.parentNode.insertBefore(bar, jurisList);
-            }
+        jurisList.parentNode.insertBefore(bar, jurisList);
+    }
 
-            // ── Doctrina: toolbar IA ──
-            const doctrinaMain = document.getElementById('doctrina-main');
-            if (doctrinaMain && !document.getElementById('cl-doctrina-toolbar')) {
-                const bar = document.createElement('div');
-                bar.id = 'cl-doctrina-toolbar';
-                bar.className = 'cl-ia-toolbar';
-                bar.style.padding = '12px 0 0';
-                bar.innerHTML = `
+    // ── Doctrina: toolbar IA ──
+    const doctrinaMain = document.getElementById('doctrina-main');
+    if (doctrinaMain && !document.getElementById('cl-doctrina-toolbar')) {
+        const bar = document.createElement('div');
+        bar.id = 'cl-doctrina-toolbar';
+        bar.className = 'cl-ia-toolbar';
+        bar.style.padding = '12px 0 0';
+        bar.innerHTML = `
                     <button class="cl-ia-toolbar-btn primary" onclick="clAbrirDoctrina()">
                         <i class="fas fa-robot"></i> Consultar doctrina con IA
                     </button>
@@ -1806,38 +1806,38 @@ ${texto.substring(0, 14000)}
                     <button class="cl-ia-toolbar-btn outline" onclick="clAbrirIframe('doctrina')">
                         <i class="fas fa-external-link-alt"></i> Claude.ai
                     </button>`;
-                doctrinaMain.insertBefore(bar, doctrinaMain.firstChild);
-            }
+        doctrinaMain.insertBefore(bar, doctrinaMain.firstChild);
+    }
 
-            // ── Informes: botón IA ──
-            const infContent = document.getElementById('informe-content');
-            if (infContent && !document.getElementById('cl-inf-btn')) {
-                const btn = document.createElement('button');
-                btn.id = 'cl-inf-btn';
-                btn.className = 'cl-ia-toolbar-btn primary';
-                btn.style.cssText = 'margin-top:10px; display:inline-flex;';
-                btn.innerHTML = '<i class="fas fa-robot"></i> Informe ejecutivo con IA (Word/PDF)';
-                btn.onclick = () => clGenerarInformeIA();
-                infContent.parentNode.insertBefore(btn, infContent);
-            }
-        }
+    // ── Informes: botón IA ──
+    const infContent = document.getElementById('informe-content');
+    if (infContent && !document.getElementById('cl-inf-btn')) {
+        const btn = document.createElement('button');
+        btn.id = 'cl-inf-btn';
+        btn.className = 'cl-ia-toolbar-btn primary';
+        btn.style.cssText = 'margin-top:10px; display:inline-flex;';
+        btn.innerHTML = '<i class="fas fa-robot"></i> Informe ejecutivo con IA (Word/PDF)';
+        btn.onclick = () => clGenerarInformeIA();
+        infContent.parentNode.insertBefore(btn, infContent);
+    }
+}
 
-        // ═══════════════════════════════════════════════════════════════════
-        // SECCIÓN 13 — SOBREESCRIBIR/EXTENDER clLegalInit ORIGINAL
-        // ═══════════════════════════════════════════════════════════════════
-        const _clLegalInitOriginal = typeof clLegalInit === 'function' ? clLegalInit : null;
+// ═══════════════════════════════════════════════════════════════════
+// SECCIÓN 13 — SOBREESCRIBIR/EXTENDER clLegalInit ORIGINAL
+// ═══════════════════════════════════════════════════════════════════
+const _clLegalInitOriginal = window.clLegalInit;
 
-        function clLegalInit() {
-            // Ejecutar inicialización original si existe
-            if (_clLegalInitOriginal) _clLegalInitOriginal();
-            // Nuevas inicializaciones
-            setTimeout(_clInyectarBarrasIA, 700);
-        }
+window.clLegalInit = function () {
+    if (typeof _clLegalInitOriginal === 'function') {
+        _clLegalInitOriginal();
+    }
+    setTimeout(_clInyectarBarrasIA, 700);
+};
 
-        // Re-inicializar si el DOM ya está listo
-        if (document.readyState !== 'loading') {
-            setTimeout(() => {
-                _clInyectarBarrasIA();
-            }, 800);
-        }
+// Re-inicializar si el DOM ya está listo
+if (document.readyState !== 'loading') {
+    setTimeout(() => {
+        _clInyectarBarrasIA();
+    }, 800);
+}
 
