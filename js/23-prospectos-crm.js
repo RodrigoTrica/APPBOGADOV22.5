@@ -231,7 +231,7 @@
     // RENDERIZADO PRINCIPAL (KANBAN)
     // ═════════════════════════════════════════════════════════════════════════
     window.prospectosRender = function () {
-        const container = document.getElementById('prospectos-crm');
+        const container = document.getElementById('prospectos-crm') || document.getElementById('prospectos');
         if (!container) return;
 
         // Limpiar DB de prospectos temporal si no existe
@@ -386,68 +386,76 @@
             </div>
         `;
 
-        // Integración con modal global genérico de la app si existe, sino crearlo
-        if (typeof showModal === 'function') {
-            // asumiendo que el sistema general tiene un showModal o usa el DOM genérico
+        let modal = document.getElementById('modal-prospecto-custom');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'modal-prospecto-custom';
+            modal.className = 'modal-overlay';
+            document.body.appendChild(modal);
         }
 
-        // Vamos a inyectar en el modal-input-generico de index.html
-        const modalId = 'modal-input-generico';
-        const modal = document.getElementById(modalId);
-        if (modal) {
-            document.getElementById('mig-titulo').innerHTML = `<i class="fas fa-user-plus"></i> ${isEdit ? 'Editar Prospecto' : 'Nuevo Prospecto'}`;
-            document.getElementById('mig-body').innerHTML = html;
-            document.getElementById('mig-btn-ok').innerText = 'Guardar Prospecto';
+        modal.innerHTML = `
+            <div class="modal-box" style="max-width:480px;">
+                <div class="modal-header">
+                    <h3><i class="fas fa-user-plus"></i> ${isEdit ? 'Editar Prospecto' : 'Nuevo Prospecto'}</h3>
+                    <button class="modal-close" id="crm-btn-close">×</button>
+                </div>
+                <div style="padding:4px 0 8px;">
+                    ${html}
+                </div>
+                <div style="display:flex; gap:8px; margin-top:18px;">
+                    <button class="btn btn-p" style="flex:1;" id="crm-btn-save"><i class="fas fa-check"></i> Guardar Prospecto</button>
+                    <button class="btn btn-sm" style="background:var(--bg-2,var(--bg)); color:var(--text-2);" id="crm-btn-cancel">Cancelar</button>
+                </div>
+            </div>
+        `;
 
-            // Override confirm
-            window.migConfirmar = function () {
-                const nombre = document.getElementById('crm-f-nombre').value.trim();
-                if (!nombre) return alert('El nombre es obligatorio');
+        document.getElementById('crm-btn-save').addEventListener('click', function () {
+            const nombre = document.getElementById('crm-f-nombre').value.trim();
+            if (!nombre) return alert('El nombre es obligatorio');
 
-                const data = {
-                    nombre,
-                    rut: document.getElementById('crm-f-rut').value.trim(),
-                    email: document.getElementById('crm-f-email').value.trim(),
-                    telefono: document.getElementById('crm-f-telefono').value.trim(),
-                    materia: document.getElementById('crm-f-materia').value,
-                    riesgo: document.getElementById('crm-f-riesgo').value,
-                    origen: document.getElementById('crm-f-origen').value,
-                    descripcion: document.getElementById('crm-f-desc').value.trim(),
-                    estrategia: document.getElementById('crm-f-estrategia').value.trim()
-                };
-
-                if (isEdit) {
-                    Object.assign(p, data);
-                    p.fechaActualizacion = new Date().toISOString();
-                } else {
-                    const nuevo = {
-                        id: 'pros_' + Date.now(),
-                        etapa: 'contacto', // Etapa inicial
-                        fechaCreacion: new Date().toISOString(),
-                        fechaContacto: new Date().toISOString(),
-                        notas: [],
-                        ...data
-                    };
-                    DB.prospectos.push(nuevo);
-                }
-
-                if (typeof guardarCambiosGlobal === 'function') guardarCambiosGlobal();
-                else if (typeof saveDataToDisk === 'function') saveDataToDisk();
-
-                // Refrescar
-                prospectosRender();
-                if (isEdit && estadoCRM.prospectoAbierto === id) {
-                    crmAbrirDetalle(id); // Recargar detalle
-                }
-
-                if (typeof cerrarModal === 'function') cerrarModal(modalId);
-                else modal.style.display = 'none';
+            const data = {
+                nombre,
+                rut: document.getElementById('crm-f-rut').value.trim(),
+                email: document.getElementById('crm-f-email').value.trim(),
+                telefono: document.getElementById('crm-f-telefono').value.trim(),
+                materia: document.getElementById('crm-f-materia').value,
+                riesgo: document.getElementById('crm-f-riesgo').value,
+                origen: document.getElementById('crm-f-origen').value,
+                descripcion: document.getElementById('crm-f-desc').value.trim(),
+                estrategia: document.getElementById('crm-f-estrategia').value.trim()
             };
 
-            modal.style.display = 'flex';
-        } else {
-            console.error('No se encontró modal-input-generico');
-        }
+            if (isEdit) {
+                Object.assign(p, data);
+                p.fechaActualizacion = new Date().toISOString();
+            } else {
+                const nuevo = {
+                    id: 'pros_' + Date.now(),
+                    etapa: 'contacto',
+                    fechaCreacion: new Date().toISOString(),
+                    fechaContacto: new Date().toISOString(),
+                    notas: [],
+                    ...data
+                };
+                DB.prospectos.push(nuevo);
+            }
+
+            if (typeof guardarCambiosGlobal === 'function') guardarCambiosGlobal();
+            else if (typeof saveDataToDisk === 'function') saveDataToDisk();
+
+            prospectosRender();
+            if (isEdit && window.estadoCRM && window.estadoCRM.prospectoAbierto === id) {
+                crmAbrirDetalle(id); // Recargar detalle
+            }
+
+            modal.style.display = 'none';
+        });
+
+        document.getElementById('crm-btn-cancel').addEventListener('click', () => modal.style.display = 'none');
+        document.getElementById('crm-btn-close').addEventListener('click', () => modal.style.display = 'none');
+
+        modal.style.display = 'flex';
     };
 
     // ═════════════════════════════════════════════════════════════════════════
@@ -683,72 +691,82 @@
             </div>
         `;
 
-        const modalId = 'modal-input-generico';
-        const modal = document.getElementById(modalId);
-        if (modal) {
-            document.getElementById('mig-titulo').innerHTML = `<i class="fas fa-file-invoice-dollar"></i> Crear Propuesta Económica`;
-            document.getElementById('mig-body').innerHTML = html;
-            document.getElementById('mig-btn-ok').innerText = 'Guardar Propuesta';
-            document.getElementById('mig-btn-ok').style.display = 'block';
+        let modal = document.getElementById('modal-propuesta-custom');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'modal-propuesta-custom';
+            modal.className = 'modal-overlay';
+            document.body.appendChild(modal);
+        }
 
-            // Override confirm
-            window.migConfirmar = function () {
-                const tipo = document.getElementById('crm-p-tipo').value;
-                const montoTotal = parseInt(document.getElementById('crm-p-monto').value) || 0;
-                if (montoTotal <= 0) return alert('El monto total debe ser mayor a cero.');
+        modal.innerHTML = `
+            <div class="modal-box" style="max-width:480px;">
+                <div class="modal-header">
+                    <h3><i class="fas fa-file-invoice-dollar"></i> Crear Propuesta Económica</h3>
+                    <button class="modal-close" id="crm-prop-btn-close">×</button>
+                </div>
+                <div style="padding:4px 0 8px;">
+                    ${html}
+                </div>
+                <div style="display:flex; gap:8px; margin-top:18px;">
+                    <button class="btn btn-p" style="flex:1;" id="crm-prop-btn-save"><i class="fas fa-check"></i> Guardar Propuesta</button>
+                    <button class="btn btn-sm" style="background:var(--bg-2,var(--bg)); color:var(--text-2);" id="crm-prop-btn-cancel">Cancelar</button>
+                </div>
+            </div>
+        `;
 
-                const forma = document.getElementById('crm-p-forma').value;
-                const ncuotas = forma === 'cuotas' ? parseInt(document.getElementById('crm-p-ncuotas').value) : 1;
+        document.getElementById('crm-prop-btn-save').addEventListener('click', function () {
+            const tipo = document.getElementById('crm-p-tipo').value;
+            const montoTotal = parseInt(document.getElementById('crm-p-monto').value) || 0;
+            if (montoTotal <= 0) return alert('El monto total debe ser mayor a cero.');
 
-                // Emision y vigencia (por defecto 15 dias)
-                const fEmision = new Date();
-                const fVigencia = new Date();
-                fVigencia.setDate(fVigencia.getDate() + 15);
+            const forma = document.getElementById('crm-p-forma').value;
+            const ncuotas = forma === 'cuotas' ? parseInt(document.getElementById('crm-p-ncuotas').value) : 1;
 
-                const data = {
-                    id: 'prop_' + Date.now(),
-                    prospectoId,
-                    fechaEmision: fEmision.toISOString(),
-                    fechaVigencia: fVigencia.toISOString(),
-                    tipoHonorarios: tipo,
-                    montoTotal,
-                    formaPago: forma,
-                    numeroCuotas: ncuotas
-                };
+            const fEmision = new Date();
+            const fVigencia = new Date();
+            fVigencia.setDate(fVigencia.getDate() + 15);
 
-                if (tipo === 'variable') {
-                    data.cuantiaLitigio = parseInt(document.getElementById('crm-p-cuantia').value) || 0;
-                    data.porcentaje = parseInt(document.getElementById('crm-p-porc').value) || 0;
-                }
-
-                if (forma === 'cuotas') {
-                    data.montoCuota = Math.round(montoTotal / ncuotas);
-                    data.fechasPago = [];
-                    // Generar fechas aprox cada 30 dias
-                    for (let i = 0; i < ncuotas; i++) {
-                        let cf = new Date();
-                        cf.setMonth(cf.getMonth() + i + 1);
-                        data.fechasPago.push(cf.toISOString());
-                    }
-                }
-
-                DB.propuestas.push(data);
-
-                // Actualizar etapa del prospecto
-                p.etapa = 'propuesta';
-
-                if (typeof guardarCambiosGlobal === 'function') guardarCambiosGlobal();
-
-                prospectosRender();
-                if (typeof cerrarModal === 'function') cerrarModal(modalId);
-                else modal.style.display = 'none';
-
-                // Volver al detalle para que vea la propuesta e imprima el PDF
-                crmAbrirDetalle(prospectoId);
+            const data = {
+                id: 'prop_' + Date.now(),
+                prospectoId,
+                fechaEmision: fEmision.toISOString(),
+                fechaVigencia: fVigencia.toISOString(),
+                tipoHonorarios: tipo,
+                montoTotal,
+                formaPago: forma,
+                numeroCuotas: ncuotas
             };
 
-            modal.style.display = 'flex';
-        }
+            if (tipo === 'variable') {
+                data.cuantiaLitigio = parseInt(document.getElementById('crm-p-cuantia').value) || 0;
+                data.porcentaje = parseInt(document.getElementById('crm-p-porc').value) || 0;
+            }
+
+            if (forma === 'cuotas') {
+                data.montoCuota = Math.round(montoTotal / ncuotas);
+                data.fechasPago = [];
+                for (let i = 0; i < ncuotas; i++) {
+                    let cf = new Date();
+                    cf.setMonth(cf.getMonth() + i + 1);
+                    data.fechasPago.push(cf.toISOString());
+                }
+            }
+
+            DB.propuestas.push(data);
+            p.etapa = 'propuesta';
+
+            if (typeof guardarCambiosGlobal === 'function') guardarCambiosGlobal();
+
+            prospectosRender();
+            modal.style.display = 'none';
+            crmAbrirDetalle(prospectoId);
+        });
+
+        document.getElementById('crm-prop-btn-cancel').addEventListener('click', () => modal.style.display = 'none');
+        document.getElementById('crm-prop-btn-close').addEventListener('click', () => modal.style.display = 'none');
+
+        modal.style.display = 'flex';
     };
 
     window.crmManejarUIPropuesta = function () {

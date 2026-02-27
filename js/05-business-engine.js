@@ -213,11 +213,31 @@ function actualizarSistema() {
 function crearProspecto(data) {
     DB.prospectos.push({
         id: generarID(),
-        nombre: data.nombre, materia: data.materia, descripcion: data.descripcion,
-        complejidad: data.complejidad, probabilidadCierre: data.probabilidadCierre || 50,
-        estado: "Nuevo", honorarioPropuesto: data.honorarioPropuesto || 0, fechaCreacion: hoy()
+        nombre: data.nombre,
+        materia: data.materia,
+        descripcion: data.descripcion,
+        complejidad: data.complejidad,
+        probabilidadCierre: data.probabilidadCierre || 50,
+        estado: 'Nuevo',
+        honorarioPropuesto: data.honorarioPropuesto || 0,
+        fechaCreacion: hoy(),
+        // ── Nuevos campos v2 ──────────────────────────────────
+        tipoHonorario: data.tipoHonorario || 'fijo',   // 'fijo' | 'variable'
+        porcentajeLitigio: data.porcentajeLitigio || 0,    // % sobre cuantía
+        cuantiaLitigio: data.cuantiaLitigio || 0,       // monto del litigio
+        estrategiaJuridica: data.estrategiaJuridica || '',  // texto libre
+        propuesta: {
+            generada: false,
+            fechaGeneracion: null,
+            fechaVencimiento: null,   // +15 días desde generación
+            aceptada: false,
+            rechazada: false,
+        },
+        tipoExpediente: null,   // 'judicial' | 'tramite' — se fija al aceptar
     });
-    if (typeof markAppDirty === "function") markAppDirty(); guardarDB(); renderProspectos();
+    if (typeof markAppDirty === 'function') markAppDirty();
+    guardarDB();
+    if (typeof renderProspectos === 'function') renderProspectos();
 }
 
 function renderProspectos() {
@@ -264,14 +284,52 @@ function renderProspectos() {
                 </div>`).join('') || '<div class="empty-state"><i class="fas fa-funnel-dollar"></i><p>Sin prospectos.</p></div>';
 }
 
-function convertirACliente(prospectoId) {
+function convertirACliente(prospectoId, tipoExpediente) {
     const prospecto = DB.prospectos.find(p => p.id === prospectoId);
     if (!prospecto) return;
-    const nuevoCliente = { id: generarID(), nombre: prospecto.nombre, fechaCreacion: hoy() };
+
+    // Marcar propuesta como aceptada
+    prospecto.estado = 'Aceptado';
+    prospecto.tipoExpediente = tipoExpediente || 'judicial';
+    if (prospecto.propuesta) prospecto.propuesta.aceptada = true;
+
+    // Crear cliente
+    const nuevoCliente = {
+        id: generarID(),
+        nombre: prospecto.nombre,
+        rut: prospecto.rut || '',
+        fechaCreacion: hoy(),
+        prospectoId: prospecto.id,
+    };
     DB.clientes.push(nuevoCliente);
-    crearCausa({ clienteId: nuevoCliente.id, caratula: prospecto.nombre, tipoProcedimiento: "Ordinario Civil", rama: prospecto.materia });
-    prospecto.estado = "Aceptado";
-    if (typeof markAppDirty === "function") markAppDirty(); guardarDB(); renderProspectos();
+
+    // Crear causa con datos completos del prospecto
+    const hon = prospecto.tipoHonorario === 'variable'
+        ? Math.round((prospecto.cuantiaLitigio || 0) * (prospecto.porcentajeLitigio || 0) / 100)
+        : (prospecto.honorarioPropuesto || 0);
+
+    crearCausa({
+        clienteId: nuevoCliente.id,
+        caratula: prospecto.nombre,
+        tipoProcedimiento: tipoExpediente === 'tramite' ? 'Trámite Administrativo' : 'Ordinario Civil',
+        rama: prospecto.materia,
+        tipoExpediente: tipoExpediente || 'judicial',
+        honorarios: {
+            montoBase: hon,
+            tipoHonorario: prospecto.tipoHonorario || 'fijo',
+            pagos: [],
+            saldoPendiente: hon,
+            cuotas: [],   // array de { monto, fechaVencimiento, pagada, alertaEnviada }
+        },
+        documentosCliente: [],    // nueva colección separada
+        documentosTribunal: [],    // nueva colección separada
+    });
+
+    if (typeof markAppDirty === 'function') markAppDirty();
+    guardarDB();
+    if (typeof renderProspectos === 'function') renderProspectos();
+    if (typeof showSuccess === 'function')
+        showSuccess(`✅ Expediente creado: ${prospecto.nombre} → ${tipoExpediente === 'tramite' ? 'Trámite' : 'Gestión Judicial'}`);
 }
 
 function asignarHonorarios(causaId, montoBase) {
@@ -785,6 +843,47 @@ function guardarEscritoComoDocumento(causaId, texto, tipoEscrito) {
     });
     registrarEvento(`Escrito guardado en causa: ${tipoEscrito} — ${causa.caratula}`);
 }
+
+/** Agrega una cuota de pago programada a una causa */
+function registrarCuota(causaId, { monto, fechaVencimiento, descripcion }) {
+    const causa = DB.causas.find(c => c.id === causaId);
+    if (!causa) return;
+    if (!causa.honorarios) causa.honorarios = {};
+    if (!causa.honorarios.cuotas) causa.honorarios.cuotas = [];
+    causa.honorarios.cuotas.push({
+        id: generarID(),
+        monto,
+        fechaVencimiento,
+        descripcion: descripcion || 'Cuota de honorarios',
+        pagada: false,
+        alertaEnviada: false,
+        fechaPago: null,
+        comprobante: null,   // base64 foto cheque/transferencia
+    });
+    if (typeof markAppDirty === 'function') markAppDirty();
+    guardarDB();
+}
+
+/** Marca una cuota como pagada y adjunta comprobante */
+function pagarCuota(causaId, cuotaId, { comprobante, fechaPago }) {
+    const causa = DB.causas.find(c => c.id === causaId);
+    if (!causa) return;
+    const cuota = (causa.honorarios?.cuotas || []).find(q => q.id === cuotaId);
+    if (!cuota) return;
+    cuota.pagada = true;
+    cuota.fechaPago = fechaPago || hoy();
+    cuota.comprobante = comprobante || null;
+    // Actualizar saldo
+    causa.honorarios.saldoPendiente = Math.max(0,
+        (causa.honorarios.saldoPendiente || 0) - cuota.monto
+    );
+    if (typeof markAppDirty === 'function') markAppDirty();
+    guardarDB();
+    if (typeof renderExpedienteFinanciero === 'function')
+        renderExpedienteFinanciero(causaId);
+}
+window.registrarCuota = registrarCuota;
+window.pagarCuota = pagarCuota;
 
 // ████████████████████████████████████████████████████████████████████
 // JS — BLOQUE 5: ANÁLISIS Y PANEL EJECUTIVO AVANZADO

@@ -87,6 +87,41 @@ function mostrarQR(dataUrl) {
     setBadge('Escanea el QR', '#f59e0b');
 }
 
+/** Verifica cuotas que vencen HOY y envía alerta WA si no fue enviada */
+async function _alertarCobrosHoy() {
+    if (!_conectado) return;
+    const hoy = new Date().toISOString().slice(0, 10);
+    const causas = DB?.causas || [];
+
+    for (const causa of causas) {
+        const cuotas = causa.honorarios?.cuotas || [];
+        for (const cuota of cuotas) {
+            if (cuota.pagada) continue;
+            if (cuota.fechaVencimiento !== hoy) continue;
+            if (cuota.alertaEnviada) continue;
+
+            const msg = `💰 *LEXIUM — Cobro Pendiente*\n\n` +
+                `📋 *Causa:* ${causa.caratula}\n` +
+                `💵 *Monto:* $${(cuota.monto || 0).toLocaleString('es-CL')}\n` +
+                `📝 *Concepto:* ${cuota.descripcion || 'Honorarios'}\n` +
+                `📅 *Vencimiento:* ${cuota.fechaVencimiento}\n\n` +
+                `_Requiere gestión inmediata — LEXIUM_`;
+
+            try {
+                await window.electronAPI.whatsapp.enviarAlerta(msg);
+                cuota.alertaEnviada = true;
+                if (typeof guardarDB === 'function') guardarDB();
+            } catch (e) {
+                console.error('[WA] Error enviando alerta cobro:', e);
+            }
+        }
+    }
+}
+
+// Ejecutar verificación al iniciar y luego cada hora
+setTimeout(_alertarCobrosHoy, 5000);
+setInterval(_alertarCobrosHoy, 60 * 60 * 1000);
+
 function _onQRListo(data) {
     const wrap = document.getElementById('wa-qr-wrap');
     if (wrap) wrap.style.display = 'none';
@@ -141,6 +176,20 @@ function onConectado(data) {
     if (data?.sesionNombre) _sesion.nombre = data.sesionNombre;
     if (data?.sesionNumero) _sesion.numero = data.sesionNumero;
     if (!_sesion.desde) _sesion.desde = new Date();
+
+    // Actualizar teléfono en el header con máscara internacional
+    if (_sesion.numero) {
+        const phoneEl = document.getElementById('topbar-phone');
+        if (phoneEl) {
+            // Aplicar máscara: los primeros 2 dígitos = código país (ej: 56 → +56)
+            const num = _sesion.numero.replace(/\D/g, '');
+            const codigoPais = num.slice(0, 2);
+            const resto = num.slice(2);
+            const masked = `+${codigoPais} ${resto.slice(0, 1)} ${resto.slice(1, 5)}-${resto.slice(5)}`;
+            phoneEl.textContent = masked;
+            phoneEl.style.display = 'block';
+        }
+    }
 
     setBadge('Conectado ✓', '#25D366');
 

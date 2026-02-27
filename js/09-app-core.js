@@ -242,10 +242,10 @@ async function init() {
         }
 
         // Cada llamada protegida individualmente — un error no rompe las demás
-        try { notificarPlazosCriticos(); } catch(e) { console.warn('[init] notificarPlazosCriticos:', e.message); }
-        try { renderDashboardPanel(); } catch(e) { console.warn('[init] renderDashboardPanel:', e.message); }
-        try { if (typeof renderSemaforoPlazos === 'function') renderSemaforoPlazos(); } catch(e) { console.warn('[init] renderSemaforoPlazos:', e.message); }
-        try { if (typeof renderPanelEjecutivo === 'function') renderPanelEjecutivo(); } catch(e) { console.warn('[init] renderPanelEjecutivo:', e.message); }
+        try { notificarPlazosCriticos(); } catch (e) { console.warn('[init] notificarPlazosCriticos:', e.message); }
+        try { renderDashboardPanel(); } catch (e) { console.warn('[init] renderDashboardPanel:', e.message); }
+        try { if (typeof renderSemaforoPlazos === 'function') renderSemaforoPlazos(); } catch (e) { console.warn('[init] renderSemaforoPlazos:', e.message); }
+        try { if (typeof renderPanelEjecutivo === 'function') renderPanelEjecutivo(); } catch (e) { console.warn('[init] renderPanelEjecutivo:', e.message); }
 
         // Aplicar tema después del render
         const themeActual = document.documentElement.getAttribute('data-theme') || 'light';
@@ -255,7 +255,7 @@ async function init() {
 
         // Re-render donnuts con delay extra para garantizar visibilidad
         setTimeout(() => {
-            try { renderDashboardPanel(); } catch(e) {}
+            try { renderDashboardPanel(); } catch (e) { }
         }, 300);
 
     }, 200);
@@ -303,7 +303,6 @@ const HUB_MAPPING = {
     ],
     'hub-negocio': [
         { id: 'clientes', label: 'CRM', icon: 'fas fa-users' },
-        { id: 'honorarios-reales', label: 'Finanzas', icon: 'fas fa-wallet' },
         { id: 'mapa-economico', label: 'Mapa Eco', icon: 'fas fa-chart-bar' },
         { id: 'cuantia', label: 'Cuantía', icon: 'fas fa-coins' },
         { id: 'timesheet', label: 'Timesheet', icon: 'fas fa-stopwatch' }
@@ -389,9 +388,9 @@ function tab(id, btn) {
         }
     }
 
-    const icons = { panel: 'chart-line', clientes: 'users', causas: 'gavel', estrategia: 'brain', calculadora: 'calendar-alt', 'calculadora-pro': 'calculator', archivos: 'folder-open', juris: 'book', honorarios: 'wallet', prospectos: 'funnel-dollar', 'causas-pro': 'sitemap', 'detalle-causa': 'folder-open', 'honorarios-reales': 'file-invoice-dollar', recursos: 'undo', calendario: 'calendar-week', prescripcion: 'hourglass-half', 'estrategia-pro': 'chess', informe: 'file-alt', escritos: 'pen-nib', 'historial-escritos': 'history', 'plantillas-escritos': 'layer-group', 'plantillas-texto': 'file-alt', 'timesheet': 'stopwatch', cuantia: 'coins', 'ficha-estrategia': 'chess-knight', 'matriz-prioridad': 'sort-amount-down', 'mapa-economico': 'chart-bar', instancias: 'sitemap', coherencia: 'project-diagram', busqueda: 'search', bitacora: 'shield-alt', biblioteca: 'book-open', 'admin-usuarios': 'users-cog', 'config-ia': 'robot', tramites: 'building', doctrina: 'graduation-cap' };
-    const names = { panel: 'Panel Ejecutivo', clientes: 'Clientes & Prospectos', causas: 'Gestión de Causas', estrategia: 'Estrategia & Riesgo', calculadora: 'Calculadora de Plazos', 'calculadora-pro': 'Calculadora Pro', archivos: 'Gestor de Archivos', juris: 'Jurisprudencia', honorarios: 'Honorarios', prospectos: 'Prospectos CRM', 'causas-pro': 'Causas Pro', 'detalle-causa': 'Detalle de Causa', 'honorarios-reales': 'Honorarios Reales', recursos: 'Recursos Procesales', calendario: 'Agenda y Alertas Críticas', prescripcion: 'Control de Prescripción', 'estrategia-pro': 'Estrategia Pro', informe: 'Informes de Causa', escritos: 'Generador de Escritos', 'historial-escritos': 'Historial de Escritos', 'plantillas-escritos': 'Plantillas Personalizadas', 'plantillas-texto': 'Plantillas de Texto', 'timesheet': 'Registro de Tiempo', cuantia: 'Cuantía Dinámica', 'ficha-estrategia': 'Ficha de Estrategia', 'matriz-prioridad': 'Matriz de Prioridad', 'mapa-economico': 'Mapa Económico', instancias: 'Control de Instancias', coherencia: 'Análisis de coherencia', busqueda: 'Búsqueda Global', bitacora: 'Bitácora del Sistema', biblioteca: 'Biblioteca Documental', 'admin-usuarios': 'Gestión de Usuarios', 'config-ia': 'Configurar Inteligencia Artificial', tramites: 'Trámites Administrativos', doctrina: 'Doctrina & Práctica Forense' };
-    const subtitles = { panel: 'Vista general de tu operación legal', clientes: 'Gestión de clientes y conflictos', causas: 'Listado y seguimiento de causas', estrategia: 'Análisis de riesgo y estrategia', calculadora: 'Cálculo automático de plazos procesales', 'calculadora-pro': 'Cálculos judiciales avanzados, UF, UTM y reajustabilidad', archivos: 'Gestor de documentos por causa', juris: 'Base de jurisprudencia', honorarios: 'Gestión de honorarios', prospectos: 'CRM de prospectos y oportunidades', 'causas-pro': 'Gestión avanzada de causas', 'detalle-causa': 'Ficha detallada de la causa', 'honorarios-reales': 'Registro de cobros reales', recursos: 'Control de recursos procesales', calendario: 'Agenda y alertas críticas', prescripcion: 'Control de plazos de prescripción', 'estrategia-pro': 'Análisis estratégico avanzado', informe: 'Generación de informes', escritos: 'Redacción asistida por IA', 'historial-escritos': 'Escritos generados y guardados en el despacho', 'plantillas-escritos': 'Modelos propios reutilizables', 'plantillas-texto': 'Plantillas con variables dinámicas', 'timesheet': 'Control de horas por causa', cuantia: 'Cálculo de cuantía dinámica', 'ficha-estrategia': 'Ficha estratégica de causa', 'matriz-prioridad': 'Clasificación por prioridad', 'mapa-economico': 'Visualización económica', instancias: 'Seguimiento de instancias', coherencia: 'Análisis de coherencia', busqueda: 'Búsqueda en todo el sistema', bitacora: 'Registro de actividad del sistema', biblioteca: 'Repositorio documental', 'admin-usuarios': 'Gestión de accesos y roles', 'config-ia': 'Configuración de inteligencia artificial', tramites: 'CBR, SII, DT, SERVIU, Municipalidades, TGR y más', doctrina: 'Textos doctrinales, práctica forense y bibliografía jurídica' };
+    const icons = { panel: 'chart-line', clientes: 'users', causas: 'gavel', estrategia: 'brain', calculadora: 'calendar-alt', 'calculadora-pro': 'calculator', archivos: 'folder-open', juris: 'book', honorarios: 'wallet', prospectos: 'funnel-dollar', 'causas-pro': 'sitemap', 'detalle-causa': 'folder-open', recursos: 'undo', calendario: 'calendar-week', prescripcion: 'hourglass-half', 'estrategia-pro': 'chess', informe: 'file-alt', escritos: 'pen-nib', 'historial-escritos': 'history', 'plantillas-escritos': 'layer-group', 'plantillas-texto': 'file-alt', 'timesheet': 'stopwatch', cuantia: 'coins', 'ficha-estrategia': 'chess-knight', 'matriz-prioridad': 'sort-amount-down', 'mapa-economico': 'chart-bar', instancias: 'sitemap', coherencia: 'project-diagram', busqueda: 'search', bitacora: 'shield-alt', biblioteca: 'book-open', 'admin-usuarios': 'users-cog', 'config-ia': 'robot', tramites: 'building', doctrina: 'graduation-cap' };
+    const names = { panel: 'Panel Ejecutivo', clientes: 'Clientes & Prospectos', causas: 'Gestión de Causas', estrategia: 'Estrategia & Riesgo', calculadora: 'Calculadora de Plazos', 'calculadora-pro': 'Calculadora Pro', archivos: 'Gestor de Archivos', juris: 'Jurisprudencia', honorarios: 'Honorarios', prospectos: 'Prospectos CRM', 'causas-pro': 'Causas Pro', 'detalle-causa': 'Detalle de Causa', recursos: 'Recursos Procesales', calendario: 'Agenda y Alertas Críticas', prescripcion: 'Control de Prescripción', 'estrategia-pro': 'Estrategia Pro', informe: 'Informes de Causa', escritos: 'Generador de Escritos', 'historial-escritos': 'Historial de Escritos', 'plantillas-escritos': 'Plantillas Personalizadas', 'plantillas-texto': 'Plantillas de Texto', 'timesheet': 'Registro de Tiempo', cuantia: 'Cuantía Dinámica', 'ficha-estrategia': 'Ficha de Estrategia', 'matriz-prioridad': 'Matriz de Prioridad', 'mapa-economico': 'Mapa Económico', instancias: 'Control de Instancias', coherencia: 'Análisis de coherencia', busqueda: 'Búsqueda Global', bitacora: 'Bitácora del Sistema', biblioteca: 'Biblioteca Documental', 'admin-usuarios': 'Gestión de Usuarios', 'config-ia': 'Configurar Inteligencia Artificial', tramites: 'Trámites Administrativos', doctrina: 'Doctrina & Práctica Forense' };
+    const subtitles = { panel: 'Vista general de tu operación legal', clientes: 'Gestión de clientes y conflictos', causas: 'Listado y seguimiento de causas', estrategia: 'Análisis de riesgo y estrategia', calculadora: 'Cálculo automático de plazos procesales', 'calculadora-pro': 'Cálculos judiciales avanzados, UF, UTM y reajustabilidad', archivos: 'Gestor de documentos por causa', juris: 'Base de jurisprudencia', honorarios: 'Gestión de honorarios', prospectos: 'CRM de prospectos y oportunidades', 'causas-pro': 'Gestión avanzada de causas', 'detalle-causa': 'Ficha detallada de la causa', recursos: 'Control de recursos procesales', calendario: 'Agenda y alertas críticas', prescripcion: 'Control de plazos de prescripción', 'estrategia-pro': 'Análisis estratégico avanzado', informe: 'Generación de informes', escritos: 'Redacción asistida por IA', 'historial-escritos': 'Escritos generados y guardados en el despacho', 'plantillas-escritos': 'Modelos propios reutilizables', 'plantillas-texto': 'Plantillas con variables dinámicas', 'timesheet': 'Control de horas por causa', cuantia: 'Cálculo de cuantía dinámica', 'ficha-estrategia': 'Ficha estratégica de causa', 'matriz-prioridad': 'Clasificación por prioridad', 'mapa-economico': 'Visualización económica', instancias: 'Seguimiento de instancias', coherencia: 'Análisis de coherencia', busqueda: 'Búsqueda en todo el sistema', bitacora: 'Registro de actividad del sistema', biblioteca: 'Repositorio documental', 'admin-usuarios': 'Gestión de accesos y roles', 'config-ia': 'Configuración de inteligencia artificial', tramites: 'CBR, SII, DT, SERVIU, Municipalidades, TGR y más', doctrina: 'Textos doctrinales, práctica forense y bibliografía jurídica' };
     const subEl = sec.querySelector('.page-subtitle');
     if (subEl) subEl.textContent = subtitles[id] || '';
     const titleEl = sec.querySelector('.page-title');
@@ -414,6 +413,7 @@ function tab(id, btn) {
     if (id === 'escritos') { gaSelectCausa(); }
     if (id === 'historial-escritos') { if (typeof historialRenderEscritos === 'function') historialRenderEscritos(); }
     if (id === 'plantillas-escritos') { if (typeof plantillasRender === 'function') plantillasRender(); }
+    if (id === 'prospectos') { if (typeof prospectosRender === 'function') prospectosRender(); }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1086,3 +1086,20 @@ async function iaTestKey() {
 
 // ── Activar auto-guardado cada 30 segundos ────────────────────────
 setInterval(__autoSave, 30000);
+
+// ── Panel switcher para Clientes / Control Financiero ─────────────
+window.mostrarPanelClientes = function (panelId, btn) {
+    // Ocultar todos los panels dentro de #clientes
+    document.querySelectorAll('#clientes .hub-panel').forEach(p => p.style.display = 'none');
+    // Mostrar el panel seleccionado
+    const panel = document.getElementById(panelId);
+    if (panel) panel.style.display = 'block';
+    // Actualizar estado visual de los hub-tabs
+    document.querySelectorAll('#clientes .hub-tab').forEach(t => t.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    // Si se abre Control Financiero, recargar los selects de honorarios
+    if (panelId === 'financiero-panel') {
+        if (typeof poblarSelectsHonorarios === 'function') poblarSelectsHonorarios();
+        if (typeof renderHonorarios === 'function') renderHonorarios();
+    }
+};

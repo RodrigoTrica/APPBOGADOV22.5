@@ -19,6 +19,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
+const puppeteer = require('puppeteer');
 
 const alertService = require('./alert-service-v3');
 const waLogger = require('./wa-logger-v3');
@@ -206,6 +207,73 @@ ipcMain.handle('docs:listar', (_e) => {
     } catch (e) { return []; }
 });
 
+// ── IPC Handlers — Prospectos / CRM ───────────────────────────────────────────
+ipcMain.handle('prospectos:generar-pdf', async (_e, { tipo, html, nombre }) => {
+    try {
+        const execPath = puppeteer.executablePath();
+        const browser = await puppeteer.launch({
+            executablePath: execPath,
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
+        });
+        const page = await browser.newPage();
+        await page.setContent(html, { waitUntil: 'networkidle0' });
+        const pdf = await page.pdf({
+            format: 'A4',
+            printBackground: true,
+            margin: { top: '20mm', right: '20mm', bottom: '20mm', left: '20mm' }
+        });
+        await browser.close();
+        const ruta = path.join(DATA_DIR, 'pdfs', `${sanitizarNombre(nombre)}.pdf`);
+        fs.mkdirSync(path.dirname(ruta), { recursive: true });
+        fs.writeFileSync(ruta, pdf);
+        return { ok: true, ruta };
+    } catch (e) {
+        console.error('[prospectos:generar-pdf]', e.message);
+        return { ok: false, error: e.message };
+    }
+});
+
+ipcMain.handle('prospectos:subir-documento', (_e, { causaId, tipo, archivo, nombre, mimetype }) => {
+    try {
+        const ruta = path.join(DATA_DIR, 'docs', sanitizarNombre(causaId), sanitizarNombre(tipo), `${sanitizarNombre(nombre)}.enc`);
+        fs.mkdirSync(path.dirname(ruta), { recursive: true });
+        // archivo se asume en Base64
+        const cleanB64 = archivo.includes('base64,') ? archivo.split('base64,')[1] : archivo;
+        fs.writeFileSync(ruta, cifrar(cleanB64));
+        return { ok: true, ruta };
+    } catch (e) {
+        console.error('[prospectos:subir-documento]', e.message);
+        return { ok: false, error: e.message };
+    }
+});
+
+ipcMain.handle('prospectos:ver-documento', (_e, { causaId, tipo, nombre }) => {
+    try {
+        const ruta = path.join(DATA_DIR, 'docs', sanitizarNombre(causaId), sanitizarNombre(tipo), `${sanitizarNombre(nombre)}.enc`);
+        if (!fs.existsSync(ruta)) return { ok: false, error: 'Documento no encontrado' };
+        const descifrado = descifrar(fs.readFileSync(ruta, 'utf8'));
+        return { ok: true, base64: descifrado };
+    } catch (e) {
+        console.error('[prospectos:ver-documento]', e.message);
+        return { ok: false, error: e.message };
+    }
+});
+
+ipcMain.handle('prospectos:registrar-pago', (_e, { id, fotoBase64, nombre }) => {
+    try {
+        if (!fotoBase64) return { ok: true };
+        const ruta = path.join(DATA_DIR, 'pagos', `${sanitizarNombre(nombre || ('pago_' + id))}.enc`);
+        fs.mkdirSync(path.dirname(ruta), { recursive: true });
+        const cleanB64 = fotoBase64.includes('base64,') ? fotoBase64.split('base64,')[1] : fotoBase64;
+        fs.writeFileSync(ruta, cifrar(cleanB64));
+        return { ok: true, ruta };
+    } catch (e) {
+        console.error('[prospectos:registrar-pago]', e.message);
+        return { ok: false, error: e.message };
+    }
+});
+
 // ── IPC Handlers — Backup ─────────────────────────────────────────────────────
 ipcMain.handle('backup:exportar', async (_e, jsonData) => {
     if (typeof jsonData !== 'string') return { error: 'Datos inválidos' };
@@ -290,7 +358,7 @@ ipcMain.handle('whatsapp:reset', async () => {
             } else {
                 resultados.push({ archivo: nombre, ok: true, nota: 'no existía' });
             }
-        } catch(e) {
+        } catch (e) {
             resultados.push({ archivo: nombre, ok: false, error: e.message });
         }
     });
@@ -304,7 +372,7 @@ ipcMain.handle('whatsapp:reset', async () => {
         } else {
             resultados.push({ archivo: '.wa-session', ok: true, nota: 'no existía' });
         }
-    } catch(e) {
+    } catch (e) {
         resultados.push({ archivo: '.wa-session', ok: false, error: e.message });
     }
 
@@ -344,7 +412,7 @@ function crearVentana() {
     mainWindow = new BrowserWindow({
         width: 1000,
         height: 700,
-        icon: path.join(__dirname, 'assets/icon.ico'),
+        icon: path.join(__dirname, 'assets/logo-lexium.ico'),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,   // ✅ renderer aislado

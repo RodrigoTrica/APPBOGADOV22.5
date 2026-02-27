@@ -265,8 +265,8 @@ const GoogleDrive = (() => {
         // Desde v15, Doctrina está integrada en Store (no requiere merge manual).
         // Solo Trámites mantiene almacenamiento aislado.
         try {
-            const rawTram  = localStorage.getItem('APPBOGADO_TRAMITES_V1');
-            if (rawTram)  snapshot._tramites  = JSON.parse(rawTram);
+            const rawTram = localStorage.getItem('APPBOGADO_TRAMITES_V1');
+            if (rawTram) snapshot._tramites = JSON.parse(rawTram);
         } catch (e) {
             console.warn('[Drive] No se pudieron incluir Trámites en el snapshot:', e.message);
         }
@@ -570,9 +570,26 @@ const GoogleDrive = (() => {
     }
 
     // Suscribirse a eventos relevantes
-    EventBus.on('drive:connected', () => {
+    EventBus.on('drive:connected', async () => {
         startAutoSync();
         showSuccess('🟢 Conectado a Google Drive. Auto-sync activo.');
+
+        // Obtener email del usuario autenticado en Google
+        try {
+            const resp = await fetch(
+                'https://www.googleapis.com/oauth2/v2/userinfo',
+                { headers: { 'Authorization': `Bearer ${_accessToken}` } }
+            );
+            if (resp.ok) {
+                const info = await resp.json();
+                const emailEl = document.getElementById('topbar-email');
+                if (emailEl && info.email) emailEl.textContent = info.email;
+                const nameEl = document.getElementById('topbar-name');
+                if (nameEl && info.name) nameEl.textContent = info.name;
+            }
+        } catch (e) {
+            console.warn('[Drive] No se pudo obtener perfil de usuario:', e);
+        }
     });
 
     EventBus.on('storage:critical', async () => {

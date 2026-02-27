@@ -108,6 +108,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
         }
     },
 
+    // ── CRM Prospectos ────────────────────────────────────────────────────────
+    prospectos: {
+        generarPDF: (args) => ipcRenderer.invoke('prospectos:generar-pdf', args),
+        subirDocumento: (args) => ipcRenderer.invoke('prospectos:subir-documento', args),
+        verDocumento: (args) => ipcRenderer.invoke('prospectos:ver-documento', args),
+        registrarPago: (args) => ipcRenderer.invoke('prospectos:registrar-pago', args)
+    },
+
     // ── Indicador: corremos en Electron ───────────────────────────────────────
     esElectron: true,
 });
