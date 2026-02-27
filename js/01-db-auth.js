@@ -475,7 +475,9 @@ let _sesionUsuario = null;
         AppConfig.recargar();
     }
     await Users.inicializar();
-    await loginRenderUsuarios();
+    setTimeout(() => {
+        loginRenderUsuarios();
+    }, 100);
 })();
 
 async function loginRenderUsuarios() {

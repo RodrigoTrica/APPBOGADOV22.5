@@ -213,7 +213,16 @@ function formatearResumen(resumen, config) {
         msg += `• ${honorarios.causas.length} causa(s) · Total: $${honorarios.total.toLocaleString('es-CL')}\n\n`;
     }
 
-    if (!alertas.criticas.length && !alertas.altas.length && !alertas.inactivas.length && !honorarios.causas.length) {
+    const cobrosHoy = alertas.cobrosHoy || [];
+    if (cobrosHoy.length > 0) {
+        msg += `💳 *COBROS VENCEN HOY (${cobrosHoy.length})*\n`;
+        cobrosHoy.forEach(c => {
+            msg += `• *${c.caratula}*\n  💰 $${c.monto.toLocaleString('es-CL')} – 📅 ${c.fecha}\n`;
+        });
+        msg += '\n';
+    }
+
+    if (!alertas.criticas.length && !alertas.altas.length && !alertas.inactivas.length && !honorarios.causas.length && !cobrosHoy.length) {
         msg += `✅ *Sin alertas activas hoy*\n\n`;
     }
 

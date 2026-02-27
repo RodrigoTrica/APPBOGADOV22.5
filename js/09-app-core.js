@@ -358,6 +358,22 @@ function tab(id, btn) {
     document.querySelectorAll('.tabs').forEach(s => s.classList.remove('active'));
     document.querySelectorAll('nav button').forEach(b => b.classList.remove('act'));
 
+    // Cerrar modales flotantes del CRM al navegar entre secciones
+    ['modal-prospecto-custom', 'modal-propuesta-custom', 'modal-input-generico', 'modal-detalle'].forEach(mid => {
+        const m = document.getElementById(mid);
+        if (m) {
+            m.style.display = 'none';
+            m.classList.remove('open');
+            // Restaurar max-width del modal genérico si fue modificado
+            if (mid === 'modal-input-generico') {
+                const box = m.querySelector('.modal-box');
+                if (box) box.style.maxWidth = '480px';
+                const btnOk = document.getElementById('mig-btn-ok');
+                if (btnOk) btnOk.style.display = 'block';
+            }
+        }
+    });
+
     const navContainer = document.getElementById('hub-nav-container');
 
     if (btn && btn.classList.contains('hub-tab')) {
@@ -391,9 +407,9 @@ function tab(id, btn) {
     const icons = { panel: 'chart-line', clientes: 'users', causas: 'gavel', estrategia: 'brain', calculadora: 'calendar-alt', 'calculadora-pro': 'calculator', archivos: 'folder-open', juris: 'book', honorarios: 'wallet', prospectos: 'funnel-dollar', 'causas-pro': 'sitemap', 'detalle-causa': 'folder-open', recursos: 'undo', calendario: 'calendar-week', prescripcion: 'hourglass-half', 'estrategia-pro': 'chess', informe: 'file-alt', escritos: 'pen-nib', 'historial-escritos': 'history', 'plantillas-escritos': 'layer-group', 'plantillas-texto': 'file-alt', 'timesheet': 'stopwatch', cuantia: 'coins', 'ficha-estrategia': 'chess-knight', 'matriz-prioridad': 'sort-amount-down', 'mapa-economico': 'chart-bar', instancias: 'sitemap', coherencia: 'project-diagram', busqueda: 'search', bitacora: 'shield-alt', biblioteca: 'book-open', 'admin-usuarios': 'users-cog', 'config-ia': 'robot', tramites: 'building', doctrina: 'graduation-cap' };
     const names = { panel: 'Panel Ejecutivo', clientes: 'Clientes & Prospectos', causas: 'Gestión de Causas', estrategia: 'Estrategia & Riesgo', calculadora: 'Calculadora de Plazos', 'calculadora-pro': 'Calculadora Pro', archivos: 'Gestor de Archivos', juris: 'Jurisprudencia', honorarios: 'Honorarios', prospectos: 'Prospectos CRM', 'causas-pro': 'Causas Pro', 'detalle-causa': 'Detalle de Causa', recursos: 'Recursos Procesales', calendario: 'Agenda y Alertas Críticas', prescripcion: 'Control de Prescripción', 'estrategia-pro': 'Estrategia Pro', informe: 'Informes de Causa', escritos: 'Generador de Escritos', 'historial-escritos': 'Historial de Escritos', 'plantillas-escritos': 'Plantillas Personalizadas', 'plantillas-texto': 'Plantillas de Texto', 'timesheet': 'Registro de Tiempo', cuantia: 'Cuantía Dinámica', 'ficha-estrategia': 'Ficha de Estrategia', 'matriz-prioridad': 'Matriz de Prioridad', 'mapa-economico': 'Mapa Económico', instancias: 'Control de Instancias', coherencia: 'Análisis de coherencia', busqueda: 'Búsqueda Global', bitacora: 'Bitácora del Sistema', biblioteca: 'Biblioteca Documental', 'admin-usuarios': 'Gestión de Usuarios', 'config-ia': 'Configurar Inteligencia Artificial', tramites: 'Trámites Administrativos', doctrina: 'Doctrina & Práctica Forense' };
     const subtitles = { panel: 'Vista general de tu operación legal', clientes: 'Gestión de clientes y conflictos', causas: 'Listado y seguimiento de causas', estrategia: 'Análisis de riesgo y estrategia', calculadora: 'Cálculo automático de plazos procesales', 'calculadora-pro': 'Cálculos judiciales avanzados, UF, UTM y reajustabilidad', archivos: 'Gestor de documentos por causa', juris: 'Base de jurisprudencia', honorarios: 'Gestión de honorarios', prospectos: 'CRM de prospectos y oportunidades', 'causas-pro': 'Gestión avanzada de causas', 'detalle-causa': 'Ficha detallada de la causa', recursos: 'Control de recursos procesales', calendario: 'Agenda y alertas críticas', prescripcion: 'Control de plazos de prescripción', 'estrategia-pro': 'Análisis estratégico avanzado', informe: 'Generación de informes', escritos: 'Redacción asistida por IA', 'historial-escritos': 'Escritos generados y guardados en el despacho', 'plantillas-escritos': 'Modelos propios reutilizables', 'plantillas-texto': 'Plantillas con variables dinámicas', 'timesheet': 'Control de horas por causa', cuantia: 'Cálculo de cuantía dinámica', 'ficha-estrategia': 'Ficha estratégica de causa', 'matriz-prioridad': 'Clasificación por prioridad', 'mapa-economico': 'Visualización económica', instancias: 'Seguimiento de instancias', coherencia: 'Análisis de coherencia', busqueda: 'Búsqueda en todo el sistema', bitacora: 'Registro de actividad del sistema', biblioteca: 'Repositorio documental', 'admin-usuarios': 'Gestión de accesos y roles', 'config-ia': 'Configuración de inteligencia artificial', tramites: 'CBR, SII, DT, SERVIU, Municipalidades, TGR y más', doctrina: 'Textos doctrinales, práctica forense y bibliografía jurídica' };
-    const subEl = sec.querySelector('.page-subtitle');
+    const subEl = sec ? sec.querySelector('.page-subtitle') : null;
     if (subEl) subEl.textContent = subtitles[id] || '';
-    const titleEl = sec.querySelector('.page-title');
+    const titleEl = sec ? sec.querySelector('.page-title') : null;
     if (titleEl && icons[id]) titleEl.innerHTML = `<i class="fas fa-${icons[id]}"></i> ${names[id]}`;
 
     // Lógica específica por módulo

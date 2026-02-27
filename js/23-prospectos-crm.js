@@ -274,7 +274,6 @@
         `;
 
         container.innerHTML = html;
-        container.style.display = 'flex';
     };
 
     function renderColumna(etapa, todosProspectos) {

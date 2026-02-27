@@ -163,6 +163,29 @@
         // El parche se aplica en 00b-config.js (ver modificación abajo).
     }
 
+    // ── Pre-hidratación síncrona (solo Electron) ──────────────────────────────
+    // Carga las claves críticas al caché ANTES de que 01-db-auth.js las necesite.
+    // Usa IPC síncrono (sendSync) para bloquear hasta tener los datos del disco.
+    if (ES_ELECTRON && window.electronAPI?.storage?.getSync) {
+        const CLAVES_CRITICAS = ['APPBOGADO_DATA_V395', 'APPBOGADO_CONFIG_V1'];
+        let hidratadas = 0;
+        CLAVES_CRITICAS.forEach(k => {
+            try {
+                const v = window.electronAPI.storage.getSync(k);
+                if (v !== null && v !== undefined) {
+                    _cache[k] = v;
+                    hidratadas++;
+                }
+            } catch(e) {
+                console.warn(`[DiskStorage] Pre-hidratación falló para ${k}:`, e);
+            }
+        });
+        if (hidratadas > 0) {
+            _inicializado = true;
+            console.info(`[DiskStorage] Pre-hidratación síncrona OK — ${hidratadas} clave(s) cargadas.`);
+        }
+    }
+
     // Exponer globalmente
     window.DiskStorage = DiskStorage;
 

@@ -22,6 +22,9 @@
             if (tab === 'tareas') dcRenderTareas(causaId);
             if (tab === 'partes') dcRenderPartes(causaId);
             if (tab === 'economico') dcRenderEconomico(causaId);
+            if (tab === 'docs-cliente')  dcRenderDocs(causaId, 'cliente');
+            if (tab === 'docs-tribunal') dcRenderDocs(causaId, 'tribunal');
+            if (tab === 'docs-tramites') dcRenderDocs(causaId, 'tramites');
         }
 
         function abrirDetalleCausa(causaId) {
@@ -204,13 +207,28 @@
                         onclick="dcCambiarTab('partes',${causaId})">
                         <i class="fas fa-users"></i> Usuarios y partes
                     </button>
+                    <button id="dctab-docs-cliente" class="dc-tab-btn"
+                        onclick="dcCambiarTab('docs-cliente',${causaId})">
+                        <i class="fas fa-folder"></i> Docs Cliente
+                    </button>
+                    <button id="dctab-docs-tribunal" class="dc-tab-btn"
+                        onclick="dcCambiarTab('docs-tribunal',${causaId})">
+                        <i class="fas fa-gavel"></i> Docs Tribunal
+                    </button>
+                    <button id="dctab-docs-tramites" class="dc-tab-btn"
+                        onclick="dcCambiarTab('docs-tramites',${causaId})">
+                        <i class="fas fa-wrench"></i> Otros Trámites
+                    </button>
                 </div>
 
                 <!-- Tab panels -->
-                <div id="dcpanel-movimientos" class="dc-tab-panel active"></div>
-                <div id="dcpanel-tareas"       class="dc-tab-panel"></div>
-                <div id="dcpanel-economico"    class="dc-tab-panel"></div>
-                <div id="dcpanel-partes"       class="dc-tab-panel"></div>
+                <div id="dcpanel-movimientos"   class="dc-tab-panel active"></div>
+                <div id="dcpanel-tareas"         class="dc-tab-panel"></div>
+                <div id="dcpanel-economico"      class="dc-tab-panel"></div>
+                <div id="dcpanel-partes"         class="dc-tab-panel"></div>
+                <div id="dcpanel-docs-cliente"   class="dc-tab-panel"></div>
+                <div id="dcpanel-docs-tribunal"  class="dc-tab-panel"></div>
+                <div id="dcpanel-docs-tramites"  class="dc-tab-panel"></div>
             </div>
         </div>
     `;
@@ -720,6 +738,174 @@
             }).join('');
         }
 
-        // ─── 5. BÚSQUEDA GLOBAL ──────────────────────────────────────────
+        // ─── FASE 5: PESTAÑAS DOCUMENTALES ──────────────────────────────
+        // Tipos: 'cliente' → docsCliente, 'tribunal' → docsTribunal, 'tramites' → docsTramites
+
+        const _DOCS_CONFIG = {
+            cliente:  { campo: 'docsCliente',  label: 'Docs Cliente',   icono: 'fa-folder',       color: '#2563a8' },
+            tribunal: { campo: 'docsTribunal',  label: 'Docs Tribunal',  icono: 'fa-gavel',        color: '#7c3aed' },
+            tramites: { campo: 'docsTramites',  label: 'Otros Trámites', icono: 'fa-wrench',       color: '#0891b2' }
+        };
+
+        function dcRenderDocs(causaId, tipo) {
+            const cfg   = _DOCS_CONFIG[tipo];
+            const causa = DB.causas.find(c => c.id === causaId);
+            const el    = document.getElementById(`dcpanel-docs-${tipo}`);
+            if (!causa || !el || !cfg) return;
+
+            // Asegurar array inicializado
+            if (!causa[cfg.campo]) causa[cfg.campo] = [];
+            const docs = causa[cfg.campo];
+
+            el.innerHTML = `
+                <div style="padding:16px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                        <div style="font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#64748b;">
+                            <i class="fas ${cfg.icono}" style="color:${cfg.color};"></i> ${cfg.label}
+                            <span style="background:#f1f5f9; color:#475569; padding:1px 7px; border-radius:10px; margin-left:6px;">${docs.length}</span>
+                        </div>
+                        <label class="btn btn-xs btn-p" style="cursor:pointer; background:${cfg.color};">
+                            <i class="fas fa-upload"></i> Subir archivo
+                            <input type="file" style="display:none;" multiple
+                                onchange="dcSubirDocumento('${causaId}','${tipo}',this.files)">
+                        </label>
+                    </div>
+
+                    <div id="dcpanel-docs-${tipo}-list">
+                        ${docs.length === 0
+                            ? `<div style="text-align:center; padding:30px; color:#94a3b8; font-size:0.82rem;">
+                                <i class="fas ${cfg.icono}" style="font-size:2rem; opacity:0.3; display:block; margin-bottom:8px;"></i>
+                                Sin documentos. Usa "Subir archivo" para agregar.
+                               </div>`
+                            : docs.map((d, i) => `
+                                <div style="display:flex; align-items:center; gap:10px; padding:10px 12px;
+                                    background:var(--bg-card,#fff); border:1px solid var(--border,#e2e8f0);
+                                    border-radius:8px; margin-bottom:8px;">
+                                    <i class="fas ${_iconoMime(d.mimetype)}" style="color:${cfg.color}; font-size:1.2rem; flex-shrink:0;"></i>
+                                    <div style="flex:1; min-width:0;">
+                                        <div style="font-size:0.82rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escHtml(d.nombre)}</div>
+                                        <div style="font-size:0.7rem; color:#94a3b8;">${new Date(d.fecha).toLocaleString('es-CL')} · ${_formatBytes(d.size || 0)}</div>
+                                    </div>
+                                    <button class="btn btn-xs" style="flex-shrink:0;"
+                                        onclick="dcVerDocumento('${causaId}','${tipo}',${i})">
+                                        <i class="fas fa-eye"></i> Ver
+                                    </button>
+                                    <button class="btn btn-xs" style="flex-shrink:0; background:#fee2e2; color:#c0392b;"
+                                        onclick="dcEliminarDocumento('${causaId}','${tipo}',${i})">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>`).join('')
+                        }
+                    </div>
+                </div>`;
+        }
+
+        // Sube uno o varios archivos, los guarda en base64 en la DB
+        window.dcSubirDocumento = async function(causaId, tipo, files) {
+            const cfg   = _DOCS_CONFIG[tipo];
+            const causa = DB.causas.find(c => c.id === causaId);
+            if (!causa || !cfg || !files?.length) return;
+            if (!causa[cfg.campo]) causa[cfg.campo] = [];
+
+            for (const file of Array.from(files)) {
+                const base64 = await _fileToBase64(file);
+                causa[cfg.campo].push({
+                    nombre:   file.name,
+                    mimetype: file.type,
+                    size:     file.size,
+                    fecha:    new Date().toISOString(),
+                    data:     base64
+                });
+            }
+
+            if (typeof saveDataToDisk === 'function') saveDataToDisk();
+            else if (typeof guardarCambiosGlobal === 'function') guardarCambiosGlobal();
+
+            dcRenderDocs(causaId, tipo); // re-render sin cerrar modal
+        };
+
+        // Abre el documento en un modal lightbox
+        window.dcVerDocumento = function(causaId, tipo, idx) {
+            const cfg   = _DOCS_CONFIG[tipo];
+            const causa = DB.causas.find(c => c.id === causaId);
+            const doc   = causa?.[cfg.campo]?.[idx];
+            if (!doc) return;
+
+            let visor;
+            if (doc.mimetype?.startsWith('image/')) {
+                visor = `<img src="${doc.data}" style="max-width:100%; max-height:70vh; border-radius:6px;">`;
+            } else if (doc.mimetype === 'application/pdf') {
+                visor = `<iframe src="${doc.data}" style="width:100%; height:70vh; border:none; border-radius:6px;"></iframe>`;
+            } else {
+                visor = `<div style="padding:20px; text-align:center; color:#64748b;">
+                    <i class="fas fa-file" style="font-size:3rem; opacity:0.4;"></i>
+                    <p>Vista previa no disponible para este tipo de archivo.</p>
+                    <a href="${doc.data}" download="${doc.nombre}" class="btn btn-p" style="margin-top:10px;">
+                        <i class="fas fa-download"></i> Descargar
+                    </a>
+                </div>`;
+            }
+
+            // Reusar modal genérico si existe, sino crear uno temporal
+            let vm = document.getElementById('modal-doc-viewer');
+            if (!vm) {
+                vm = document.createElement('div');
+                vm.id = 'modal-doc-viewer';
+                vm.className = 'modal-overlay';
+                vm.style.cssText = 'display:none; z-index:9999;';
+                vm.innerHTML = `<div class="modal-box" style="max-width:800px; width:90vw;">
+                    <div class="modal-header">
+                        <h3 id="modal-doc-viewer-titulo"></h3>
+                        <button class="modal-close" onclick="document.getElementById('modal-doc-viewer').style.display='none'">×</button>
+                    </div>
+                    <div id="modal-doc-viewer-body"></div>
+                </div>`;
+                document.body.appendChild(vm);
+            }
+            document.getElementById('modal-doc-viewer-titulo').textContent = doc.nombre;
+            document.getElementById('modal-doc-viewer-body').innerHTML = visor;
+            vm.style.display = 'flex';
+        };
+
+        // Elimina documento con confirmación
+        window.dcEliminarDocumento = function(causaId, tipo, idx) {
+            if (!confirm('¿Eliminar este documento? Esta acción no se puede deshacer.')) return;
+            const cfg   = _DOCS_CONFIG[tipo];
+            const causa = DB.causas.find(c => c.id === causaId);
+            if (!causa?.[cfg.campo]) return;
+            causa[cfg.campo].splice(idx, 1);
+            if (typeof saveDataToDisk === 'function') saveDataToDisk();
+            else if (typeof guardarCambiosGlobal === 'function') guardarCambiosGlobal();
+            dcRenderDocs(causaId, tipo);
+        };
+
+        // ── Helpers internos ──────────────────────────────────────────
+        function _fileToBase64(file) {
+            return new Promise((res, rej) => {
+                const r = new FileReader();
+                r.onload  = () => res(r.result);
+                r.onerror = () => rej(new Error('Error leyendo archivo'));
+                r.readAsDataURL(file);
+            });
+        }
+
+        function _iconoMime(mime) {
+            if (!mime) return 'fa-file';
+            if (mime.startsWith('image/'))      return 'fa-file-image';
+            if (mime === 'application/pdf')     return 'fa-file-pdf';
+            if (mime.includes('word'))          return 'fa-file-word';
+            if (mime.includes('excel') || mime.includes('spreadsheet')) return 'fa-file-excel';
+            return 'fa-file-alt';
+        }
+
+        function _formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        // ─── 5. BÚSQUEDA GLOBAL ──────────────────────────────────────────────
         let busqFiltroActual = 'todo';
 

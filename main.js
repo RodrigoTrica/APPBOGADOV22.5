@@ -121,6 +121,21 @@ ipcMain.handle('storage:get', (_e, clave) => {
     }
 });
 
+// ── IPC Síncrono — hidratación del Store al inicio ───────────────────────────
+// 01-db-auth.js lee el caché síncronamente antes de que _init() async termine.
+// Este canal bloquea el renderer hasta tener el dato del disco.
+ipcMain.on('storage:get-sync', (event, clave) => {
+    try {
+        validarClave(clave);
+        const archivo = path.join(DATA_DIR, `${sanitizarNombre(clave)}.enc`);
+        if (!fs.existsSync(archivo)) { event.returnValue = null; return; }
+        event.returnValue = descifrar(fs.readFileSync(archivo, 'utf8'));
+    } catch (e) {
+        console.error('[Storage:get-sync]', e.message);
+        event.returnValue = null;
+    }
+});
+
 ipcMain.handle('storage:set', (_e, clave, valor) => {
     try {
         validarClave(clave);
@@ -437,11 +452,12 @@ function crearVentana() {
                 ...details.responseHeaders,
                 'Content-Security-Policy': [
                     "default-src 'self';" +
-                    "script-src 'self' 'unsafe-inline';" +   // TODO: eliminar 'unsafe-inline' al separar JS a archivos externos
+                    "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;" +
                     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com;" +
                     "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com;" +
                     "img-src 'self' data: blob:;" +
-                    "connect-src 'self' https://generativelanguage.googleapis.com;" + // para Gemini
+                    "connect-src 'self' https://generativelanguage.googleapis.com https://cdnjs.cloudflare.com https://api.openai.com https://api.anthropic.com;" +
+                    "worker-src 'self' blob: https://cdnjs.cloudflare.com;" +
                     "frame-src 'none';" +
                     "object-src 'none';"
                 ]

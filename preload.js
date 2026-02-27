@@ -42,6 +42,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
             return ipcRenderer.invoke('storage:delete', clave);
         },
         list: () => ipcRenderer.invoke('storage:list'),
+        // Lectura síncrona bloqueante — solo para hidratación inicial del Store
+        getSync: (clave) => {
+            assertString(clave, 'clave', 200);
+            return ipcRenderer.sendSync('storage:get-sync', clave);
+        },
     },
 
     // ── Documentos cifrados en disco ──────────────────────────────────────────

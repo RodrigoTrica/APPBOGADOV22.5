@@ -158,6 +158,45 @@ function _escribirDBAtomico(db) {
     }
 }
 
+// ── Alertas de cobro pendiente (Fase 4.2) ─────────────────────
+
+/**
+ * Retorna las causas con un pago programado para HOY y saldo pendiente > 0.
+ * Trabaja sobre la DB ya leída (se recibe como parámetro para evitar doble lectura).
+ */
+function _getAlertasCobrosHoy(causas) {
+    const hoy = new Date().toISOString().split('T')[0];
+    const alertas = [];
+
+    (causas || []).forEach(c => {
+        if (!c.estadoCuenta?.fechasPago) return;
+        c.estadoCuenta.fechasPago.forEach(fecha => {
+            const fechaDia = (fecha || '').split('T')[0];
+            if (fechaDia !== hoy) return;
+            if ((c.estadoCuenta.saldoPendiente || 0) <= 0) return;
+            alertas.push({
+                tipo:      'cobro-pendiente',
+                causaId:   c.id,
+                caratula:  c.caratula || c.id,
+                monto:     c.estadoCuenta.montoCuota || c.estadoCuenta.saldoPendiente,
+                fecha:     hoy
+            });
+        });
+    });
+
+    return alertas;
+}
+
+/**
+ * Versión pública exportable — lee la DB internamente.
+ * Permite verificar desde consola: getAlertasCobrosHoy() → []
+ */
+function getAlertasCobrosHoy() {
+    const db = _leerDB();
+    if (!db) return [];
+    return _getAlertasCobrosHoy(db.causas);
+}
+
 // ── API pública ────────────────────────────────────────────────
 
 function getAlertasActivas(prioridades = null) {
@@ -209,9 +248,11 @@ function getResumenParaWhatsApp() {
     const causasConDeuda = causas.filter(c => c.honorarios?.saldoPendiente > 0);
     const totalDeuda     = causasConDeuda.reduce((s, c) => s + (c.honorarios?.saldoPendiente || 0), 0);
 
+    const cobrosHoy = _getAlertasCobrosHoy(causas); // sin segunda lectura de DB
+
     return {
         ok: true,
-        alertas: { criticas, altas, inactivas },
+        alertas: { criticas, altas, inactivas, cobrosHoy },
         honorarios: {
             causas: causasConDeuda.map(c => ({
                 caratula:       c.caratula,
@@ -290,6 +331,7 @@ module.exports = {
     getAlertasCriticas,
     getCausasConHonorariosPendientes,
     getResumenParaWhatsApp,
+    getAlertasCobrosHoy,
     marcarAlertaNotificada,
     alertaYaNotificadaHoy,
     getCacheInfo
