@@ -84,27 +84,44 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
 
     whatsapp: {
-        estado: () => ipcRenderer.invoke('whatsapp:estado'),
+        estado:   () => ipcRenderer.invoke('whatsapp:estado'),
         conectar: () => ipcRenderer.invoke('whatsapp:conectar'),
+
+        // Enviar resumen a TODOS los destinatarios activos (scheduler 8AM manual)
         enviarResumen: () => ipcRenderer.invoke('whatsapp:enviar-resumen'),
+
+        // Enviar resumen solo al número PRINCIPAL
+        enviarResumenPrincipal: () => ipcRenderer.invoke('whatsapp:enviar-resumen-principal'),
+
+        // Enviar mensaje de texto a TODOS los destinatarios activos
         enviarAlerta: (msg) => {
-            if (typeof msg !== 'string' || !msg.trim())
-                throw new Error('Mensaje vacío');
+            if (typeof msg !== 'string' || !msg.trim()) throw new Error('Mensaje vacío');
             return ipcRenderer.invoke('whatsapp:enviar-alerta', msg);
         },
-        guardarConfig: (cfg) => ipcRenderer.invoke('whatsapp:guardar-config', cfg),
-        desconectar: () => ipcRenderer.invoke('whatsapp:desconectar'),
-        getLogs: (n) => ipcRenderer.invoke('whatsapp:logs', n),
-        getEstadisticas: () => ipcRenderer.invoke('whatsapp:estadisticas'),
-        limpiarLogs: () => ipcRenderer.invoke('whatsapp:limpiar-logs'),
-        reset: () => ipcRenderer.invoke('whatsapp:reset'),
+
+        // Enviar mensaje a UN número específico (secundarios on-demand)
+        enviarAlertaA: (numero, msg) => {
+            if (typeof numero !== 'string' || !numero.trim()) throw new Error('Número vacío');
+            if (typeof msg !== 'string' || !msg.trim()) throw new Error('Mensaje vacío');
+            return ipcRenderer.invoke('whatsapp:enviar-alerta-a', numero, msg);
+        },
+
+        guardarConfig:   (cfg) => ipcRenderer.invoke('whatsapp:guardar-config', cfg),
+        desconectar:     ()    => ipcRenderer.invoke('whatsapp:desconectar'),
+        getLogs:         (n)   => ipcRenderer.invoke('whatsapp:logs', n),
+        getEstadisticas: ()    => ipcRenderer.invoke('whatsapp:estadisticas'),
+        limpiarLogs:     ()    => ipcRenderer.invoke('whatsapp:limpiar-logs'),
+        reset:           ()    => ipcRenderer.invoke('whatsapp:reset'),
+
         onEvento: (callback) => {
             [
                 'whatsapp:qr',
                 'whatsapp:ready',
                 'whatsapp:disconnected',
                 'whatsapp:auth_failure',
-                'whatsapp:alerta-enviada'
+                'whatsapp:alerta-enviada',
+                'whatsapp:reconectado-auto',
+                'whatsapp:cargando'
             ].forEach(ev =>
                 ipcRenderer.on(ev, (_e, data) =>
                     callback(ev.replace('whatsapp:', ''), data)

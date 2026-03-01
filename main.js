@@ -341,12 +341,34 @@ ipcMain.handle('sistema:abrirCarpetaDatos', () => {
 ipcMain.handle('whatsapp:guardar-config', async (_e, config) => {
     const { validarNumero } = require('./whatsapp-service-v3');
 
+    // Validar numero legacy
     if (config.numeroDestino) {
         const v = validarNumero(config.numeroDestino);
-        if (!v.ok) {
-            return { error: `Número inválido: ${v.error}` };
-        }
+        if (!v.ok) return { error: `Número inválido: ${v.error}` };
         config.numeroDestino = v.numero;
+    }
+
+    // Validar array de destinatarios (nuevo) — preservar campo autoEnvio
+    if (Array.isArray(config.destinatarios)) {
+        const validados = [];
+        for (const dest of config.destinatarios) {
+            if (!dest.numero) continue;
+            const v = validarNumero(dest.numero);
+            if (!v.ok) return { error: `Número inválido (${dest.nombre || dest.numero}): ${v.error}` };
+            validados.push({
+                nombre:    (dest.nombre || '').substring(0, 60),
+                numero:    v.numero,
+                autoEnvio: dest.autoEnvio !== false   // default true
+            });
+        }
+        config.destinatarios = validados;
+    }
+
+    // Validar destinoNumero (número principal nuevo campo)
+    if (config.destinoNumero) {
+        const v = validarNumero(config.destinoNumero);
+        if (!v.ok) return { error: `Número principal inválido: ${v.error}` };
+        config.destinoNumero = v.numero;
     }
 
     try {
@@ -516,15 +538,22 @@ app.whenReady().then(() => {
     });
 
 
-    // ── Activar si está configurado ────────────────────────────
-    const waConfig = getWhatsAppConfig();
+    // ── Reconexión automática al arrancar ─────────────────────
+    // Si hay sesión guardada en disco (.wa-session), reconectar sin pedir QR.
+    // Independiente del checkbox "activo" — la sesión persiste siempre.
+    mainWindow.once('ready-to-show', () => {
+        const waSessionDir = require('path').join(app.getPath('userData'), '.wa-session');
+        const sessionExists = require('fs').existsSync(waSessionDir);
 
-    if (waConfig.activo && waConfig.numeroDestino) {
-        mainWindow.once('ready-to-show', () => {
+        if (sessionExists) {
+            // Hay sesión guardada → reconectar automáticamente
             whatsappService.initWhatsApp(mainWindow);
-            whatsappService.iniciarSchedulers(waConfig);
-        });
-    }
+        }
+
+        // Schedulers: solo si el checkbox activo está marcado
+        // Usan getWhatsAppConfig() dinámicamente en cada ejecución
+        whatsappService.iniciarSchedulers(getWhatsAppConfig);
+    });
 });
 
 app.on('window-all-closed', () => {

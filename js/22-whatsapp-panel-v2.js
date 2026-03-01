@@ -17,6 +17,8 @@ let _intervalEstado = null;
 
 let _sesion = { nombre: '', numero: '', desde: null };
 let _destino = { nombre: '', numero: '' };
+let _destinatarios = []; // lista de destinatarios (nuevo sistema)
+let _reconexionAuto = false;  // true cuando reconecta desde sesión guardada (sin QR)
 
 function _esPanelVisible() {
     const sec = document.getElementById('seccion-whatsapp');
@@ -37,11 +39,36 @@ function initWhatsAppPanel() {
 
     window.electronAPI.whatsapp.onEvento((tipo, data) => {
         switch (tipo) {
-            case 'qr': mostrarQR(data?.dataUrl || null); break;
-            case 'ready': _onQRListo(data); break;
+            case 'qr':
+                mostrarQR(data?.dataUrl || null);
+                break;
+            case 'ready':
+                // Solo mostrar modal si fue por QR nuevo (no reconexión automática)
+                if (!_reconexionAuto) {
+                    _onQRListo(data);
+                } else {
+                    // Reconexión automática: conectar directo sin modal
+                    onConectado(data || {});
+                }
+                _reconexionAuto = false;
+                break;
+            case 'reconectado-auto':
+                // Marcar flag ANTES de que llegue el 'ready'
+                _reconexionAuto = true;
+                onConectado(data || {});
+                EventBus.emit('notificacion', { tipo: 'ok', mensaje: '✅ WhatsApp reconectado automáticamente' });
+                break;
+            case 'cargando':
+                setBadge(`Reconectando… ${data?.percent || 0}%`, '#f59e0b');
+                break;
             case 'disconnected':
-            case 'auth_failure': onDesconectado(); break;
-            case 'alerta-enviada': actualizarStats(); actualizarLog(); break;
+            case 'auth_failure':
+                onDesconectado();
+                break;
+            case 'alerta-enviada':
+                actualizarStats();
+                actualizarLog();
+                break;
         }
     });
 
@@ -60,15 +87,27 @@ async function _cargarConfigGuardada() {
             _sesion.desde = e.sesionDesde ? new Date(e.sesionDesde) : null;
         }
 
-        if (e.destinoNombre || e.destinoNumero) {
-            _destino.nombre = e.destinoNombre || '';
-            _destino.numero = e.destinoNumero || '';
-            const dn = document.getElementById('wa-dest-nombre');
-            const dn2 = document.getElementById('wa-numero-alt');
-            if (dn) dn.value = _destino.nombre;
-            if (dn2) dn2.value = _destino.numero;
-            _mostrarDestinoActivo();
+        // Número principal (soporta campos nuevos y legacy)
+        _destino.nombre = e.destinoNombre || e.nombreAbogado || '';
+        _destino.numero = e.destinoNumero || e.numeroDestino || '';
+
+        // Pre-rellenar inputs del principal
+        const pNombre = document.getElementById('wa-principal-nombre');
+        const pNumero = document.getElementById('wa-principal-numero');
+        if (pNombre) pNombre.value = _destino.nombre;
+        if (pNumero) pNumero.value = _destino.numero;
+
+        _renderPrincipal();
+
+        // Secundarios: { nombre, numero, autoEnvio }
+        if (Array.isArray(e.destinatarios) && e.destinatarios.length > 0) {
+            _destinatarios = e.destinatarios.map(d => ({
+                nombre:    d.nombre    || '',
+                numero:    d.numero    || '',
+                autoEnvio: d.autoEnvio !== false   // default true
+            }));
         }
+        _renderListaDestinatarios();
 
         const chk = document.getElementById('wa-activo');
         if (chk && e.activo !== undefined) chk.checked = !!e.activo;
@@ -176,6 +215,7 @@ function onConectado(data) {
     if (data?.sesionNombre) _sesion.nombre = data.sesionNombre;
     if (data?.sesionNumero) _sesion.numero = data.sesionNumero;
     if (!_sesion.desde) _sesion.desde = new Date();
+    document.getElementById('wa-test-card')?.style.setProperty('display', 'block');
 
     // Actualizar teléfono en el header con máscara internacional
     if (_sesion.numero) {
@@ -231,6 +271,7 @@ function onDesconectado() {
     const card = document.getElementById('wa-usuario-activo');
     if (btn) { btn.textContent = 'Conectar'; btn.style.background = ''; btn.style.borderColor = ''; }
     if (card) card.style.display = 'none';
+    document.getElementById('wa-test-card')?.style.setProperty('display', 'none');
 }
 
 function setBadge(txt, color) {
@@ -243,17 +284,40 @@ function setBadge(txt, color) {
 async function actualizarEstado() {
     try {
         const e = await window.electronAPI.whatsapp.estado();
+
+        // Siempre sincronizar config guardada (por si se guardó desde otra sesión)
+        if (e.destinoNumero || e.numeroDestino) {
+            const num = e.destinoNumero || e.numeroDestino;
+            const nom = e.destinoNombre || e.nombreAbogado || '';
+            if (num !== _destino.numero) {
+                _destino.numero = num;
+                _destino.nombre = nom;
+                const pN = document.getElementById('wa-principal-nombre');
+                const pU = document.getElementById('wa-principal-numero');
+                if (pN && !pN.value) pN.value = nom;
+                if (pU && !pU.value) pU.value = num;
+                _renderPrincipal();
+            }
+        }
+        if (Array.isArray(e.destinatarios) && e.destinatarios.length > 0 && _destinatarios.length === 0) {
+            _destinatarios = e.destinatarios.map(d => ({
+                nombre: d.nombre || '', numero: d.numero || '', autoEnvio: d.autoEnvio !== false
+            }));
+            _renderListaDestinatarios();
+        }
+
         if (e.conectado) onConectado(e);
         else onDesconectado();
     } catch (_) { }
 }
 
-async function waGuardarDestino() {
-    const nombre = document.getElementById('wa-dest-nombre')?.value?.trim() || '';
-    const numero = document.getElementById('wa-numero-alt')?.value?.replace(/[\s\+\-\(\)]/g, '').trim() || '';
+// ── Guardar número PRINCIPAL ──────────────────────────────────────
+async function waGuardarPrincipal() {
+    const nombre = document.getElementById('wa-principal-nombre')?.value?.trim() || '';
+    const numero = document.getElementById('wa-principal-numero')?.value?.replace(/[\s\+\-\(\)]/g, '').trim() || '';
 
     if (!numero) {
-        EventBus.emit('notificacion', { tipo: 'warn', mensaje: 'Ingresa el número de destino para el reenvío automático' });
+        EventBus.emit('notificacion', { tipo: 'warn', mensaje: 'Ingresa el número principal.' });
         return;
     }
     if (!/^\d{11,15}$/.test(numero)) {
@@ -264,44 +328,163 @@ async function waGuardarDestino() {
     _destino.nombre = nombre;
     _destino.numero = numero;
 
+    await _guardarDestinatarios();
+    _renderPrincipal();
+    EventBus.emit('notificacion', { tipo: 'ok', mensaje: `Número principal guardado: ${nombre || numero}` });
+}
+
+// ── Agregar destinatario SECUNDARIO ───────────────────────────────
+async function waGuardarDestino() {
+    const nombre = document.getElementById('wa-dest-nombre')?.value?.trim() || '';
+    const numero = document.getElementById('wa-numero-alt')?.value?.replace(/[\s\+\-\(\)]/g, '').trim() || '';
+
+    if (!numero) {
+        EventBus.emit('notificacion', { tipo: 'warn', mensaje: 'Ingresa el número para agregar.' });
+        return;
+    }
+    if (!/^\d{11,15}$/.test(numero)) {
+        EventBus.emit('notificacion', { tipo: 'error', mensaje: 'Número inválido. Ej: 56912345678 (con código de país, sin +)' });
+        return;
+    }
+    if (_destino.numero && _destino.numero === numero) {
+        EventBus.emit('notificacion', { tipo: 'warn', mensaje: 'Este número ya es el destinatario principal.' });
+        return;
+    }
+    if (_destinatarios.find(d => d.numero === numero)) {
+        EventBus.emit('notificacion', { tipo: 'warn', mensaje: 'Este número ya está en la lista de secundarios.' });
+        return;
+    }
+
+    _destinatarios.push({ nombre, numero, autoEnvio: true });
+
+    await _guardarDestinatarios();
+    _renderListaDestinatarios();
+
+    const dn = document.getElementById('wa-dest-nombre');
+    const dn2 = document.getElementById('wa-numero-alt');
+    if (dn) dn.value = '';
+    if (dn2) dn2.value = '';
+
+    EventBus.emit('notificacion', { tipo: 'ok', mensaje: `Destinatario secundario agregado: ${nombre || numero}` });
+}
+
+async function waEliminarDestinatario(numero) {
+    _destinatarios = _destinatarios.filter(d => d.numero !== numero);
+    await _guardarDestinatarios();
+    _renderListaDestinatarios();
+    EventBus.emit('notificacion', { tipo: 'info', mensaje: 'Destinatario secundario eliminado.' });
+}
+
+// Alternar autoEnvio de un secundario
+async function waToggleAutoEnvio(numero) {
+    const d = _destinatarios.find(x => x.numero === numero);
+    if (!d) return;
+    d.autoEnvio = !d.autoEnvio;
+    await _guardarDestinatarios();
+    _renderListaDestinatarios();
+}
+
+async function _guardarDestinatarios() {
     try {
         const activo = document.getElementById('wa-activo')?.checked || false;
         await window.electronAPI.whatsapp.guardarConfig({
-            destinoNombre: nombre,
-            destinoNumero: numero,
-            numeroDestino: numero,
-            nombreAbogado: nombre,
+            destinoNombre:  _destino.nombre,
+            destinoNumero:  _destino.numero,
+            numeroDestino:  _destino.numero,
+            nombreAbogado:  _destino.nombre,
+            destinatarios:  _destinatarios,   // secundarios con { nombre, numero, autoEnvio }
             activo
         });
-        _mostrarDestinoActivo();
-        EventBus.emit('notificacion', { tipo: 'ok', mensaje: `Destino guardado: ${nombre || numero}` });
     } catch (e) {
         EventBus.emit('notificacion', { tipo: 'error', mensaje: e.message });
     }
 }
 
-function _mostrarDestinoActivo() {
-    const card = document.getElementById('wa-dest-activo');
-    if (!card) return;
-    if (_destino.numero) {
-        setText('wa-dest-activo-nombre', _destino.nombre || '(Sin nombre)');
-        setText('wa-dest-activo-numero', `+${_destino.numero}`);
-        card.style.display = 'flex';
-    } else {
-        card.style.display = 'none';
+// Muestra/actualiza el bloque del número principal en el HTML
+function _renderPrincipal() {
+    const nombreEl = document.getElementById('wa-principal-nombre');
+    const numeroEl = document.getElementById('wa-principal-numero');
+    const card     = document.getElementById('wa-principal-activo');
+
+    if (card) {
+        if (_destino.numero) {
+            const n = document.getElementById('wa-principal-activo-nombre');
+            const u = document.getElementById('wa-principal-activo-numero');
+            if (n) n.textContent = _destino.nombre || '(Sin nombre)';
+            if (u) u.textContent = `+${_destino.numero}`;
+            card.style.display = 'flex';
+        } else {
+            card.style.display = 'none';
+        }
     }
+    // Pre-rellenar inputs si están vacíos
+    if (nombreEl && !nombreEl.value && _destino.nombre) nombreEl.value = _destino.nombre;
+    if (numeroEl && !numeroEl.value && _destino.numero) numeroEl.value = _destino.numero;
+}
+
+function _renderListaDestinatarios() {
+    const el = document.getElementById('wa-lista-destinatarios');
+    if (!el) return;
+
+    if (!_destinatarios.length) {
+        el.innerHTML = `
+            <div style="text-align:center; padding:12px; color:var(--text-3); font-size:0.78rem;">
+                <i class="fas fa-user-plus" style="display:block; font-size:1.4rem; margin-bottom:6px; opacity:0.4;"></i>
+                Sin destinatarios secundarios. Agrega uno arriba.
+            </div>`;
+        return;
+    }
+
+    const activos = _destinatarios.filter(d => d.autoEnvio).length;
+    el.innerHTML = _destinatarios.map(d => `
+        <div style="display:flex; align-items:center; gap:10px; padding:8px 10px;
+                    border:1px solid var(--border); border-radius:8px;
+                    background:${d.autoEnvio ? 'var(--bg-1)' : 'var(--bg)'};
+                    opacity:${d.autoEnvio ? '1' : '0.6'};">
+            <label style="display:flex; align-items:center; cursor:pointer; flex-shrink:0;" title="Activar envío automático 8AM">
+                <input type="checkbox" ${d.autoEnvio ? 'checked' : ''}
+                       onchange="waToggleAutoEnvio('${d.numero}')"
+                       style="width:16px; height:16px; accent-color:#25d366; cursor:pointer;" />
+            </label>
+            <div style="width:30px; height:30px; border-radius:50%; background:#25d36618;
+                        display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                <i class="fab fa-whatsapp" style="color:#25d366; font-size:0.85rem;"></i>
+            </div>
+            <div style="flex:1; min-width:0;">
+                <div style="font-weight:600; font-size:0.82rem;">${escHtml(d.nombre || '(Sin nombre)')}</div>
+                <div style="font-size:0.72rem; color:var(--text-3); font-family:monospace;">+${escHtml(d.numero)}</div>
+            </div>
+            <span style="font-size:0.65rem; padding:2px 7px; border-radius:20px; font-weight:600;
+                         background:${d.autoEnvio ? '#dcfce7' : '#f3f4f6'}; color:${d.autoEnvio ? '#166534' : '#6b7280'};">
+                ${d.autoEnvio ? '8AM ✓' : 'pausado'}
+            </span>
+            <button onclick="waEliminarDestinatario('${d.numero}')"
+                    style="background:transparent; border:none; color:#dc2626; cursor:pointer; padding:4px 6px; border-radius:4px; font-size:0.75rem;"
+                    title="Eliminar">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>`).join('');
+
+    // Mostrar contador de activos
+    const contador = document.getElementById('wa-secundarios-activos');
+    if (contador) contador.textContent = `${activos} con envío automático`;
+}
+
+function _mostrarDestinoActivo() {
+    // Siempre oculto: reemplazado visualmente por wa-lista-destinatarios
+    const card = document.getElementById('wa-dest-activo');
+    if (card) card.style.display = 'none';
 }
 
 async function waLimpiarDestino() {
-    _destino.nombre = '';
-    _destino.numero = '';
+    _destinatarios = [];
     ['wa-dest-nombre', 'wa-numero-alt'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
-    _mostrarDestinoActivo();
-    try { await window.electronAPI.whatsapp.guardarConfig({ destinoNombre: '', destinoNumero: '' }); } catch (_) { }
-    EventBus.emit('notificacion', { tipo: 'info', mensaje: 'Destino de reenvío eliminado' });
+    _renderListaDestinatarios();
+    await _guardarDestinatarios();
+    EventBus.emit('notificacion', { tipo: 'info', mensaje: 'Lista de destinatarios secundarios limpiada.' });
 }
 
 function waValidarNumeroAlt() {
@@ -342,23 +525,28 @@ async function waToggle() {
     setTimeout(actualizarEstado, 1000);
 }
 
+// Enviar resumen al número PRINCIPAL únicamente
 async function waEnviarResumen() {
     if (!_conectado) {
         EventBus.emit('notificacion', { tipo: 'warn', mensaje: 'WhatsApp no está conectado' });
         return;
     }
-    if (!_destino.numero || !/^\d{11,15}$/.test(_destino.numero)) {
-        EventBus.emit('notificacion', { tipo: 'warn', mensaje: 'Configura primero el número de destino en la sección de reenvío automático' });
+    if (!_destino.numero) {
+        EventBus.emit('notificacion', { tipo: 'warn', mensaje: 'Configura primero el número principal' });
         return;
     }
     const btn = document.getElementById('wa-btn-resumen');
     if (btn) { btn.disabled = true; btn.textContent = 'Enviando...'; }
     try {
-        const r = await window.electronAPI.whatsapp.enviarResumen();
+        const r = await window.electronAPI.whatsapp.enviarResumenPrincipal();
         EventBus.emit('notificacion', {
             tipo: r?.ok ? 'ok' : 'error',
-            mensaje: r?.ok ? `Resumen enviado a ${_destino.nombre || _destino.numero}` : (r?.error || 'Error al enviar')
+            mensaje: r?.ok
+                ? `✅ Resumen enviado a ${_destino.nombre || _destino.numero}`
+                : (r?.error || 'Error al enviar')
         });
+    } catch(e) {
+        EventBus.emit('notificacion', { tipo: 'error', mensaje: e.message });
     } finally {
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fab fa-whatsapp"></i> Enviar resumen ahora'; }
     }
@@ -366,29 +554,42 @@ async function waEnviarResumen() {
     actualizarLog();
 }
 
+// Reenviar ahora a todos los secundarios que tengan autoEnvio activo
 async function waEnviarAOtroNumero() {
     if (!_conectado) {
         EventBus.emit('notificacion', { tipo: 'warn', mensaje: 'WhatsApp no está conectado' });
         return;
     }
-    const numAlt = document.getElementById('wa-numero-alt')?.value?.replace(/[\s\+\-\(\)]/g, '').trim() || '';
-    if (!/^\d{11,15}$/.test(numAlt)) {
-        EventBus.emit('notificacion', { tipo: 'error', mensaje: 'Número inválido (ej: 56912345678)' });
+    const activos = _destinatarios.filter(d => d.autoEnvio);
+    if (activos.length === 0) {
+        EventBus.emit('notificacion', { tipo: 'warn', mensaje: 'Ningún destinatario secundario tiene el envío automático activado' });
         return;
     }
     const btn = document.getElementById('wa-btn-enviar-alt');
     if (btn) { btn.disabled = true; btn.textContent = 'Enviando...'; }
+    let ok = 0; let fail = 0;
     try {
-        const r = await window.electronAPI.whatsapp.enviarResumen();
-        EventBus.emit('notificacion', {
-            tipo: r?.ok ? 'ok' : 'error',
-            mensaje: r?.ok ? `Reporte reenviado a ${numAlt}` : (r?.error || 'Error')
-        });
-    } catch (e) {
-        EventBus.emit('notificacion', { tipo: 'error', mensaje: e.message });
+        for (const d of activos) {
+            try {
+                await window.electronAPI.whatsapp.enviarAlertaA(d.numero,
+                    `📋 Reporte LEXIUM — enviado manualmente`);
+                ok++;
+            } catch(_) { fail++; }
+        }
+        // fallback: usar IPC genérico si enviarAlertaA no está disponible
+    } catch(_) {
+        try {
+            const r = await window.electronAPI.whatsapp.enviarResumen();
+            ok = r?.ok ? activos.length : 0;
+            fail = r?.ok ? 0 : activos.length;
+        } catch(e2) {
+            EventBus.emit('notificacion', { tipo: 'error', mensaje: e2.message });
+        }
     } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fab fa-whatsapp"></i> Reenviar ahora'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fab fa-whatsapp"></i> Reenviar a activos'; }
     }
+    if (ok > 0) EventBus.emit('notificacion', { tipo: 'ok', mensaje: `Reporte enviado a ${ok} destinatario${ok > 1 ? 's' : ''} secundario${ok > 1 ? 's' : ''}${fail > 0 ? ` (${fail} fallaron)` : ''}` });
+    else        EventBus.emit('notificacion', { tipo: 'error', mensaje: 'No se pudo enviar a ningún secundario' });
     actualizarStats();
     actualizarLog();
 }
@@ -441,11 +642,15 @@ async function waReset() {
         if (r?.ok) {
             _sesion = { nombre: '', numero: '', desde: null };
             _destino = { nombre: '', numero: '' };
+            _destinatarios = [];
             onDesconectado();
-            ['wa-dest-nombre', 'wa-numero-alt'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+            ['wa-dest-nombre', 'wa-numero-alt', 'wa-principal-nombre', 'wa-principal-numero'].forEach(id => {
+                const el = document.getElementById(id); if (el) el.value = '';
+            });
             const chk = document.getElementById('wa-activo');
             if (chk) chk.checked = false;
-            _mostrarDestinoActivo();
+            _renderPrincipal();
+            _renderListaDestinatarios();
             document.getElementById('wa-stats-card')?.style.setProperty('display', 'none');
             document.getElementById('wa-log-card')?.style.setProperty('display', 'none');
             actualizarLog();
@@ -460,16 +665,88 @@ async function waReset() {
     }
 }
 
+// ── Funciones de prueba de envío ──────────────────────────────────────────────
+function _testMostrarResultado(tipo, texto) {
+    const el = document.getElementById('wa-test-resultado');
+    if (!el) return;
+    const colores = { ok: { bg: '#f0fdf4', border: '#bbf7d0', txt: '#166534' }, error: { bg: '#fef2f2', border: '#fecaca', txt: '#991b1b' }, cargando: { bg: '#eff6ff', border: '#bfdbfe', txt: '#1e40af' } };
+    const c = colores[tipo] || colores.cargando;
+    el.style.display = 'block';
+    el.style.background = c.bg;
+    el.style.border = `1px solid ${c.border}`;
+    el.style.color = c.txt;
+    el.innerHTML = texto;
+}
+
+async function waTestEnviarMensaje() {
+    if (!_conectado) { EventBus.emit('notificacion', { tipo: 'warn', mensaje: 'WhatsApp no conectado' }); return; }
+    const numRaw = document.getElementById('wa-test-numero')?.value?.replace(/[\s\+\-\(\)]/g, '').trim() || '';
+    const msg    = document.getElementById('wa-test-msg')?.value?.trim() || '🧪 Prueba LEXIUM';
+    _testMostrarResultado('cargando', '⏳ Enviando mensaje...');
+    try {
+        let r;
+        if (numRaw && /^\d{11,15}$/.test(numRaw)) {
+            r = await window.electronAPI.whatsapp.enviarAlertaA(numRaw, msg);
+            _testMostrarResultado(r?.ok ? 'ok' : 'error',
+                r?.ok ? `✅ Mensaje enviado a <strong>+${numRaw}</strong>. Verifica el teléfono.`
+                      : `❌ Error: ${r?.error || 'desconocido'}`);
+        } else if (_destino.numero) {
+            r = await window.electronAPI.whatsapp.enviarAlertaA(_destino.numero, msg);
+            _testMostrarResultado(r?.ok ? 'ok' : 'error',
+                r?.ok ? `✅ Mensaje enviado al principal <strong>+${_destino.numero}</strong>. Verifica el teléfono.`
+                      : `❌ Error: ${r?.error || 'desconocido'}`);
+        } else {
+            _testMostrarResultado('error', '❌ Ingresa un número o configura el principal primero.');
+        }
+    } catch(e) { _testMostrarResultado('error', `❌ ${e.message}`); }
+    actualizarStats(); actualizarLog();
+}
+
+async function waTestEnviarResumen() {
+    if (!_conectado) { EventBus.emit('notificacion', { tipo: 'warn', mensaje: 'WhatsApp no conectado' }); return; }
+    if (!_destino.numero) { _testMostrarResultado('error', '❌ No hay número principal configurado.'); return; }
+    _testMostrarResultado('cargando', '⏳ Enviando resumen al principal...');
+    try {
+        const r = await window.electronAPI.whatsapp.enviarResumenPrincipal();
+        _testMostrarResultado(r?.ok ? 'ok' : 'error',
+            r?.ok ? `✅ Resumen enviado a <strong>${_destino.nombre || _destino.numero}</strong>. Verifica el teléfono.`
+                  : `❌ Error: ${r?.error || 'desconocido'}`);
+    } catch(e) { _testMostrarResultado('error', `❌ ${e.message}`); }
+    actualizarStats(); actualizarLog();
+}
+
+async function waTestEnviarTodos() {
+    if (!_conectado) { EventBus.emit('notificacion', { tipo: 'warn', mensaje: 'WhatsApp no conectado' }); return; }
+    const activos = _destinatarios.filter(d => d.autoEnvio);
+    const principal = _destino.numero ? 1 : 0;
+    const total = principal + activos.length;
+    if (total === 0) { _testMostrarResultado('error', '❌ No hay destinatarios configurados.'); return; }
+    _testMostrarResultado('cargando', `⏳ Enviando a ${total} destinatario${total > 1 ? 's' : ''}...`);
+    try {
+        const r = await window.electronAPI.whatsapp.enviarResumen();
+        _testMostrarResultado(r?.ok ? 'ok' : 'error',
+            r?.ok ? `✅ Resumen enviado a <strong>${total} destinatario${total > 1 ? 's' : ''}</strong> (principal + secundarios activos). Verifica los teléfonos.`
+                  : `❌ Error: ${r?.error || 'desconocido'}`);
+    } catch(e) { _testMostrarResultado('error', `❌ ${e.message}`); }
+    actualizarStats(); actualizarLog();
+}
+
 function setText(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
 
 function escHtml(str) {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+window.waTestEnviarMensaje = waTestEnviarMensaje;
+window.waTestEnviarResumen = waTestEnviarResumen;
+window.waTestEnviarTodos   = waTestEnviarTodos;
 window.waToggle = waToggle;
 window.waReset = waReset;
 window.waConfirmarSesion = waConfirmarSesion;
+window.waGuardarPrincipal = waGuardarPrincipal;
 window.waGuardarDestino = waGuardarDestino;
+window.waEliminarDestinatario = waEliminarDestinatario;
+window.waToggleAutoEnvio = waToggleAutoEnvio;
 window.waLimpiarDestino = waLimpiarDestino;
 window.waEnviarResumen = waEnviarResumen;
 window.waEnviarAOtroNumero = waEnviarAOtroNumero;

@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="assets/fa/css/all.min.css">
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/rediseno.css">
+    <link rel="stylesheet" href="css/fixes.css">
 
 </head>
 
@@ -46,11 +47,6 @@
             <div class="nav-group-items" id="nav-items-expedientes">
                 <button onclick="tab('causas',this)"><i class="fas fa-gavel"></i> Gestión de Causas</button>
                 <button onclick="tab('causas-pro',this)"><i class="fas fa-sitemap"></i> Causas Pro</button>
-                <button onclick="tab('detalle-causa',this)"><i class="fas fa-folder-open"></i> Detalle Causa</button>
-                <button onclick="tab('instancias',this)"><i class="fas fa-sitemap"></i> Instancias</button>
-                <button onclick="tab('recursos',this)"><i class="fas fa-undo"></i> Recursos</button>
-                <button onclick="tab('prescripcion',this)"><i class="fas fa-hourglass-half"></i> Prescripción</button>
-                <button onclick="tab('archivos',this)"><i class="fas fa-archive"></i> Gestor de Archivos</button>
             </div>
 
             <!-- 🧠 HUB 3: INTELIGENCIA -->
@@ -229,7 +225,7 @@
                     <div class="topbar-avatar" id="topbar-avatar">A</div>
                     <div class="topbar-info">
                         <div class="topbar-name" id="topbar-name">Administrador</div>
-                        <div class="topbar-email" id="topbar-email">admin@appbogado.com</div>
+                        <div class="topbar-email" id="topbar-email"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="7c1d181115123c1d0c0c1e131b1d1813521f1311">[email&#160;protected]</a></div>
                         <div class="topbar-phone" id="topbar-phone"
                             style="font-size:11px;color:var(--text-3);display:none;"></div>
                     </div>
@@ -2326,15 +2322,13 @@
     </div>
 
     <!-- MODAL DETALLE CAUSA -->
-    <div class="modal-overlay" id="modal-detalle" style="padding:12px;">
-        <div class="modal-box" style="max-width:960px; width:100%; max-height:92vh; overflow-y:auto;">
-            <div class="modal-header"
-                style="position:sticky; top:0; background:var(--bg-card); z-index:10; border-radius:12px 12px 0 0; border-bottom:1px solid var(--border); padding:16px 20px;">
-                <h3 id="modal-detalle-titulo" style="font-size:0.82rem; color:#64748b; font-weight:600;">Detalle de
-                    Causa</h3>
+    <div class="modal-overlay" id="modal-detalle">
+        <div class="modal-box" id="modal-detalle-box">
+            <div class="modal-header" id="modal-detalle-header-generic">
+                <h3 id="modal-detalle-titulo"></h3>
                 <button class="modal-close" onclick="cerrarModal('modal-detalle')">×</button>
             </div>
-            <div id="modal-detalle-body" style="padding:20px;"></div>
+            <div id="modal-detalle-body"></div>
         </div>
     </div>
 
@@ -2461,7 +2455,7 @@
          Orden de carga: dependencias primero, app core al final
     ════════════════════════════════════════════════════ -->
     <!-- v13: EventBus + RenderBus + StorageGuard (debe ir PRIMERO) -->
-    <script src="js/00-disk-storage.js"></script>
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="js/00-disk-storage.js"></script>
     <script src="js/00b-config.js"></script>
     <script src="js/00-eventbus.js"></script>
     <script src="js/01-db-auth.js"></script>
@@ -2493,6 +2487,8 @@
     <script src="js/21-doc-fisico.js"></script>
     <script src="js/guardar-global.js"></script>
     <script src="js/22-whatsapp-panel-v2.js"></script>
+    <script src="js/23-causas-pro-docs.js"></script>
+    <script src="js/patches.js"></script>
 
     <!-- MODAL VERSIONES -->
     <div class="modal-overlay" id="modal-versiones" onclick="if(event.target===this)cerrarModal('modal-versiones')">
@@ -2994,12 +2990,4 @@
                     window.addEventListener('resize', resize);
                 }
             }
-            start();
-        })();
-    </script>
-    <script src="js/23-prospectos-crm.js"></script>
-    <script src="js/23b-prospectos-pdf.js"></script>
-    <script src="js/23-causas-pro-docs.js"></script>
-</body>
-
-</html>
+ 

@@ -2,8 +2,18 @@
         // ═══════════════════════════════════════════════════════════════
 
         // ─── UTILS MODAL ─────────────────────────────────────────────────
-        function abrirModal(id) { document.getElementById(id).classList.add('open'); }
-        function cerrarModal(id) { document.getElementById(id).classList.remove('open'); }
+        function abrirModal(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.style.display = '';
+            el.classList.add('open');
+        }
+        function cerrarModal(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.classList.remove('open');
+            el.style.display = 'none';
+        }
 
         // ─── 1. VISTA DETALLE DE CAUSA (modal completo) ───────────────────
         // ─── Tab activo en detalle de causa ──────────────────────────────
@@ -25,6 +35,7 @@
             if (tab === 'docs-cliente')  dcRenderDocs(causaId, 'cliente');
             if (tab === 'docs-tribunal') dcRenderDocs(causaId, 'tribunal');
             if (tab === 'docs-tramites') dcRenderDocs(causaId, 'tramites');
+            if (tab === 'proceso') dcRenderProceso(causaId);
         }
 
         function abrirDetalleCausa(causaId) {
@@ -139,17 +150,17 @@
                     </div>
                     <div class="dc-sidebar-body">
                         ${etapas.length ? etapas.map((e, i) => `
-                            <div style="display:flex; gap:8px; align-items:flex-start; margin-bottom:10px;">
-                                <div class="etapa-check ${e.completada ? 'done' : 'pending'}" style="flex-shrink:0;"
-                                    onclick="uiMarcarEtapa(${causaId},${i})">
+                            <div class="dc-etapa-item ${e.completada ? 'done' : ''}"
+                                 onclick="uiMarcarEtapa(${causaId},${i})" style="cursor:pointer;">
+                                <div class="dc-etapa-check ${e.completada ? 'done' : ''}">
                                     ${e.completada ? '<i class="fas fa-check" style="font-size:0.55rem;"></i>' : ''}
                                 </div>
                                 <div style="flex:1; min-width:0;">
-                                    <div style="font-size:0.78rem; font-weight:600; color:${e.completada ? '#94a3b8' : '#0f172a'}; ${e.completada ? 'text-decoration:line-through;' : ''}">${escHtml(e.nombre)}</div>
-                                    ${e.fecha ? `<div style="font-size:0.68rem; color:#94a3b8; font-family:'IBM Plex Mono',monospace;">${new Date(e.fecha).toLocaleDateString('es-CL')}</div>` : ''}
+                                    <div class="dc-etapa-nombre">${escHtml(e.nombre)}</div>
+                                    ${e.fecha ? `<div style="font-size:0.65rem; color:var(--text-3); font-family:'IBM Plex Mono',monospace; margin-top:1px;">${new Date(e.fecha).toLocaleDateString('es-CL')}</div>` : ''}
                                 </div>
                             </div>`).join('')
-                    : '<p style="font-size:0.78rem; color:#94a3b8;">Sin etapas definidas.</p>'}
+                    : '<p style="font-size:0.78rem; color:var(--text-3);">Sin etapas definidas.</p>'}
                     </div>
                 </div>
 
@@ -219,6 +230,10 @@
                         onclick="dcCambiarTab('docs-tramites',${causaId})">
                         <i class="fas fa-wrench"></i> Otros Trámites
                     </button>
+                    <button id="dctab-proceso" class="dc-tab-btn"
+                        onclick="dcCambiarTab('proceso',${causaId})">
+                        <i class="fas fa-sitemap"></i> Proceso
+                    </button>
                 </div>
 
                 <!-- Tab panels -->
@@ -229,6 +244,7 @@
                 <div id="dcpanel-docs-cliente"   class="dc-tab-panel"></div>
                 <div id="dcpanel-docs-tribunal"  class="dc-tab-panel"></div>
                 <div id="dcpanel-docs-tramites"  class="dc-tab-panel"></div>
+                <div id="dcpanel-proceso"           class="dc-tab-panel"></div>
             </div>
         </div>
     `;
@@ -420,7 +436,6 @@
             });
             if (typeof markAppDirty === "function") markAppDirty(); guardarDB();
             dcRenderTareas(causaId);
-            // Actualizar badge del tab
             const badge = document.querySelector('#dctab-tareas .dc-tab-badge');
             if (badge) {
                 const p = causa.tareas.filter(t => !t.done).length;
@@ -584,7 +599,6 @@
             </div>`;
         }
 
-        // ── Formulario inline de edición de parte — SIN prompt() ────────────────────────
         function dcEditarParte(causaId, rolKey, rolLabel) {
             const causa = DB.causas.find(c => c.id === causaId);
             if (!causa) return;
@@ -633,7 +647,6 @@
             });
         }
 
-        // Render sección detalle causa (tab)
         function renderDetalleCausa(causaId) {
             const el = document.getElementById('detalle-causa-content');
             if (!causaId) { el.innerHTML = '<div class="empty-state card"><i class="fas fa-gavel"></i><p>Seleccione una causa.</p></div>'; return; }
@@ -739,8 +752,6 @@
         }
 
         // ─── FASE 5: PESTAÑAS DOCUMENTALES ──────────────────────────────
-        // Tipos: 'cliente' → docsCliente, 'tribunal' → docsTribunal, 'tramites' → docsTramites
-
         const _DOCS_CONFIG = {
             cliente:  { campo: 'docsCliente',  label: 'Docs Cliente',   icono: 'fa-folder',       color: '#2563a8' },
             tribunal: { campo: 'docsTribunal',  label: 'Docs Tribunal',  icono: 'fa-gavel',        color: '#7c3aed' },
@@ -753,78 +764,262 @@
             const el    = document.getElementById(`dcpanel-docs-${tipo}`);
             if (!causa || !el || !cfg) return;
 
-            // Asegurar array inicializado
             if (!causa[cfg.campo]) causa[cfg.campo] = [];
             const docs = causa[cfg.campo];
+            const dropId  = `dc-drop-${causaId}-${tipo}`;
+            const statId  = `dc-stat-${causaId}-${tipo}`;
+            const listId  = `dcpanel-docs-${tipo}-list`;
 
             el.innerHTML = `
                 <div style="padding:16px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                         <div style="font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#64748b;">
                             <i class="fas ${cfg.icono}" style="color:${cfg.color};"></i> ${cfg.label}
                             <span style="background:#f1f5f9; color:#475569; padding:1px 7px; border-radius:10px; margin-left:6px;">${docs.length}</span>
                         </div>
-                        <label class="btn btn-xs btn-p" style="cursor:pointer; background:${cfg.color};">
-                            <i class="fas fa-upload"></i> Subir archivo
-                            <input type="file" style="display:none;" multiple
-                                onchange="dcSubirDocumento('${causaId}','${tipo}',this.files)">
-                        </label>
                     </div>
-
-                    <div id="dcpanel-docs-${tipo}-list">
-                        ${docs.length === 0
-                            ? `<div style="text-align:center; padding:30px; color:#94a3b8; font-size:0.82rem;">
-                                <i class="fas ${cfg.icono}" style="font-size:2rem; opacity:0.3; display:block; margin-bottom:8px;"></i>
-                                Sin documentos. Usa "Subir archivo" para agregar.
-                               </div>`
-                            : docs.map((d, i) => `
-                                <div style="display:flex; align-items:center; gap:10px; padding:10px 12px;
-                                    background:var(--bg-card,#fff); border:1px solid var(--border,#e2e8f0);
-                                    border-radius:8px; margin-bottom:8px;">
-                                    <i class="fas ${_iconoMime(d.mimetype)}" style="color:${cfg.color}; font-size:1.2rem; flex-shrink:0;"></i>
-                                    <div style="flex:1; min-width:0;">
-                                        <div style="font-size:0.82rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escHtml(d.nombre)}</div>
-                                        <div style="font-size:0.7rem; color:#94a3b8;">${new Date(d.fecha).toLocaleString('es-CL')} · ${_formatBytes(d.size || 0)}</div>
-                                    </div>
-                                    <button class="btn btn-xs" style="flex-shrink:0;"
-                                        onclick="dcVerDocumento('${causaId}','${tipo}',${i})">
-                                        <i class="fas fa-eye"></i> Ver
-                                    </button>
-                                    <button class="btn btn-xs" style="flex-shrink:0; background:#fee2e2; color:#c0392b;"
-                                        onclick="dcEliminarDocumento('${causaId}','${tipo}',${i})">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>`).join('')
-                        }
+                    <div id="${dropId}"
+                         style="border:2px dashed #cbd5e1; border-radius:10px; padding:16px; text-align:center;
+                                cursor:pointer; transition:all 0.2s; margin-bottom:10px; background:#f8fafc;"
+                         onclick="document.getElementById('dc-file-${causaId}-${tipo}').click()"
+                         ondragover="event.preventDefault(); this.style.borderColor='${cfg.color}'; this.style.background='${cfg.color}10';"
+                         ondragleave="this.style.borderColor='#cbd5e1'; this.style.background='#f8fafc';"
+                         ondrop="_dcHandleDrop(event,'${causaId}','${tipo}')">
+                        <i class="fas fa-cloud-upload-alt" style="font-size:1.4rem; color:${cfg.color}; margin-bottom:5px; display:block;"></i>
+                        <div style="font-weight:600; font-size:0.82rem; color:#334155;">Subir archivo</div>
+                        <div style="font-size:0.7rem; color:#94a3b8; margin-top:2px;">
+                            PDF · Word · Imagen · Arrastra o haz clic
+                            ${cfg.campo !== 'docsTramites' ? '· <span style="color:'+cfg.color+'; font-weight:600;">IA clasifica PDFs automáticamente</span>' : ''}
+                        </div>
+                        <input type="file" id="dc-file-${causaId}-${tipo}" accept="*/*" multiple style="display:none;"
+                               onchange="_dcHandleFiles(event,'${causaId}','${tipo}')">
+                    </div>
+                    <div id="${statId}" style="display:none; margin-bottom:10px;"></div>
+                    <div id="${listId}">
+                        ${_dcDocsHtml(docs, causaId, tipo, cfg)}
                     </div>
                 </div>`;
         }
 
-        // Sube uno o varios archivos, los guarda en base64 en la DB
-        window.dcSubirDocumento = async function(causaId, tipo, files) {
+        function _dcDocsHtml(docs, causaId, tipo, cfg) {
+            if (!docs.length) return `
+                <div style="text-align:center; padding:24px; color:#94a3b8; font-size:0.82rem;">
+                    <i class="fas ${cfg.icono}" style="font-size:1.8rem; opacity:0.3; display:block; margin-bottom:8px;"></i>
+                    Sin documentos aún.
+                </div>`;
+
+            const tipoColor = { 'Resolución':'#7c3aed','Escrito':'#2563eb','Prueba':'#d97706','Sentencia':'#dc2626','Notificación':'#059669' };
+
+            return docs.map((d, i) => {
+                const esPdf = d.mimetype === 'application/pdf';
+                const tagIA = d.tipoIA ? `<span style="font-size:0.65rem; background:${tipoColor[d.tipoIA]||'#64748b'}18;
+                    color:${tipoColor[d.tipoIA]||'#64748b'}; padding:1px 6px; border-radius:10px; font-weight:600; margin-left:4px;">${escHtml(d.tipoIA)}</span>` : '';
+                const etapaTag = d.etapaIA ? `<span style="font-size:0.65rem; color:#64748b; margin-left:4px;">· ${escHtml(d.etapaIA)}</span>` : '';
+                const plazoTag = d.plazoIA ? `<span style="font-size:0.65rem; color:#dc2626; font-weight:600; margin-left:4px;">
+                    <i class="fas fa-clock"></i> ${escHtml(d.plazoIA)}</span>` : '';
+                const resumenTag = d.resumenIA ? `<div style="font-size:0.7rem; color:#64748b; margin-top:2px; font-style:italic; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escHtml(d.resumenIA)}</div>` : '';
+
+                return `
+                <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px;
+                    background:var(--bg-card,#fff); border:1px solid var(--border,#e2e8f0);
+                    border-radius:8px; margin-bottom:8px;">
+                    <i class="fas ${_iconoMime(d.mimetype)}" style="color:${cfg.color}; font-size:1.1rem; flex-shrink:0; margin-top:2px;"></i>
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-size:0.82rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                            ${escHtml(d.nombre)}${tagIA}${etapaTag}${plazoTag}
+                        </div>
+                        <div style="font-size:0.7rem; color:#94a3b8; margin-top:1px;">
+                            ${new Date(d.fecha).toLocaleString('es-CL')} · ${_formatBytes(d.size || 0)}
+                        </div>
+                        ${resumenTag}
+                    </div>
+                    <div style="display:flex; gap:4px; flex-shrink:0;">
+                        <button class="btn btn-xs" onclick="dcVerDocumento('${causaId}','${tipo}',${i})" title="Ver">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        ${esPdf ? `<button class="btn btn-xs" style="background:#eff6ff; color:#2563eb; border:none;"
+                            onclick="_dcAnalizarDocIA('${causaId}','${tipo}',${i})" title="Analizar con IA">
+                            <i class="fas fa-brain"></i>
+                        </button>` : ''}
+                        <button class="btn btn-xs" style="background:#fee2e2; color:#c0392b; border:none;"
+                            onclick="dcEliminarDocumento('${causaId}','${tipo}',${i})" title="Eliminar">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        window._dcHandleDrop = function(event, causaId, tipo) {
+            event.preventDefault();
+            const drop = document.getElementById(`dc-drop-${causaId}-${tipo}`);
+            if (drop) { drop.style.borderColor = '#cbd5e1'; drop.style.background = '#f8fafc'; }
+            const files = event.dataTransfer.files;
+            if (files?.length) _dcProcesarArchivos(causaId, tipo, Array.from(files));
+        };
+
+        window._dcHandleFiles = function(event, causaId, tipo) {
+            const files = Array.from(event.target.files || []);
+            if (files.length) _dcProcesarArchivos(causaId, tipo, files);
+        };
+
+        window._dcProcesarArchivos = async function(causaId, tipo, files) {
             const cfg   = _DOCS_CONFIG[tipo];
             const causa = DB.causas.find(c => c.id === causaId);
-            if (!causa || !cfg || !files?.length) return;
+            if (!causa || !cfg) return;
             if (!causa[cfg.campo]) causa[cfg.campo] = [];
 
-            for (const file of Array.from(files)) {
-                const base64 = await _fileToBase64(file);
-                causa[cfg.campo].push({
+            const statEl = document.getElementById(`dc-stat-${causaId}-${tipo}`);
+            _dcMostrarStat(statEl, 'loading', `<i class="fas fa-spinner fa-spin"></i> Procesando ${files.length} archivo(s)...`);
+
+            for (const file of files) {
+                const base64full = await _fileToBase64(file);
+                const base64data = base64full.split(',')[1];
+                const doc = {
                     nombre:   file.name,
                     mimetype: file.type,
                     size:     file.size,
                     fecha:    new Date().toISOString(),
-                    data:     base64
-                });
+                    data:     base64full,
+                    tipoIA:   null,
+                    etapaIA:  null,
+                    plazoIA:  null,
+                    resumenIA: null
+                };
+                causa[cfg.campo].push(doc);
+
+                if (file.type === 'application/pdf' && typeof iaCall === 'function') {
+                    _dcAnalizarPdfIA(causaId, tipo, causa[cfg.campo].length - 1, base64data, file.name, causa, statEl);
+                }
             }
 
-            if (typeof saveDataToDisk === 'function') saveDataToDisk();
-            else if (typeof guardarCambiosGlobal === 'function') guardarCambiosGlobal();
+            _dcGuardar();
+            dcRenderDocs(causaId, tipo);
 
-            dcRenderDocs(causaId, tipo); // re-render sin cerrar modal
+            if (files.every(f => f.type !== 'application/pdf')) {
+                _dcMostrarStat(statEl, 'success', `<i class="fas fa-check-circle"></i> ${files.length} archivo(s) guardado(s).`);
+                setTimeout(() => { if (statEl) statEl.style.display = 'none'; }, 3000);
+            }
         };
 
-        // Abre el documento en un modal lightbox
+        window._dcAnalizarDocIA = async function(causaId, tipo, idx) {
+            const cfg   = _DOCS_CONFIG[tipo];
+            const causa = DB.causas.find(c => c.id === causaId);
+            const doc   = causa?.[cfg.campo]?.[idx];
+            if (!doc || doc.mimetype !== 'application/pdf') return;
+            const statEl = document.getElementById(`dc-stat-${causaId}-${tipo}`);
+            const base64data = doc.data.split(',')[1];
+            await _dcAnalizarPdfIA(causaId, tipo, idx, base64data, doc.nombre, causa, statEl);
+            dcRenderDocs(causaId, tipo);
+        };
+
+        async function _dcAnalizarPdfIA(causaId, tipo, idx, base64data, nombreArchivo, causa, statEl) {
+            if (typeof iaCall !== 'function') return;
+
+            _dcMostrarStat(statEl, 'loading', `<i class="fas fa-brain fa-pulse"></i> IA analizando "${escHtml(nombreArchivo)}"...`);
+
+            try {
+                const textoPdf = await _dcExtraerTextoPdf(base64data);
+                if (!textoPdf || textoPdf.trim().length < 20) throw new Error('PDF sin texto extraíble (imagen escaneada).');
+
+                const textoTruncado = textoPdf.substring(0, 6000);
+                const ramaCtx = causa.rama ? `La causa es de rama: "${causa.rama}".` : '';
+                const tipoCtx = tipo === 'cliente' ? 'aportado por el cliente'
+                              : tipo === 'tribunal' ? 'emitido por el tribunal'
+                              : 'relacionado con trámites';
+
+                const prompt = `Eres un asistente jurídico especializado en derecho chileno. ${ramaCtx}
+Este documento es ${tipoCtx}.
+
+Analiza el texto y devuelve SOLO un objeto JSON válido, sin explicaciones ni bloques de código:
+{
+  "tipo": "uno de: Resolución | Escrito | Prueba | Sentencia | Notificación | Contrato | Otro",
+  "etapa": "etapa procesal breve (ej: Demanda, Contestación, Prueba, Sentencia)",
+  "plazo": "descripción del plazo si existe (ej: '10 días hábiles para contestar') o null",
+  "resumen": "resumen de 1 línea del contenido"
+}
+
+TEXTO:
+${textoTruncado}`;
+
+                const respuesta = await iaCall(prompt);
+                const jsonStr = respuesta.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+                const data = JSON.parse(jsonStr);
+
+                const cfg = _DOCS_CONFIG[tipo];
+                const doc = causa[cfg.campo][idx];
+                if (doc) {
+                    doc.tipoIA    = data.tipo    || null;
+                    doc.etapaIA   = data.etapa   || null;
+                    doc.plazoIA   = data.plazo   || null;
+                    doc.resumenIA = data.resumen || null;
+                }
+
+                _dcGuardar();
+                _dcMostrarStat(statEl, 'success',
+                    `<i class="fas fa-check-circle"></i> <strong>IA clasificó "${escHtml(nombreArchivo)}"</strong>
+                     ${data.tipo ? ` — ${escHtml(data.tipo)}` : ''}
+                     ${data.resumen ? `<br><span style="font-size:0.72rem; color:#4b5563;">${escHtml(data.resumen)}</span>` : ''}`
+                );
+                setTimeout(() => { if (statEl) statEl.style.display = 'none'; }, 6000);
+
+            } catch (err) {
+                console.error('[dcIA]', err);
+                _dcMostrarStat(statEl, 'warning',
+                    `<i class="fas fa-exclamation-triangle"></i> No se pudo analizar "${escHtml(nombreArchivo)}". ${err.message}`
+                );
+                setTimeout(() => { if (statEl) statEl.style.display = 'none'; }, 5000);
+            }
+        }
+
+        async function _dcExtraerTextoPdf(base64) {
+            if (!window.pdfjsLib) {
+                await new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+                    script.onload = resolve;
+                    script.onerror = reject;
+                    document.head.appendChild(script);
+                });
+                window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+                    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            }
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            const pdf = await window.pdfjsLib.getDocument({ data: bytes }).promise;
+            let texto = '';
+            const maxPags = Math.min(pdf.numPages, 10);
+            for (let i = 1; i <= maxPags; i++) {
+                const page = await pdf.getPage(i);
+                const content = await page.getTextContent();
+                texto += content.items.map(item => item.str).join(' ') + '\n';
+            }
+            return texto.trim();
+        }
+
+        function _dcMostrarStat(el, tipo, html) {
+            if (!el) return;
+            const estilos = {
+                loading: 'background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8;',
+                success: 'background:#f0fdf4; border:1px solid #bbf7d0; color:#166534;',
+                warning: 'background:#fffbeb; border:1px solid #fde68a; color:#92400e;',
+                error:   'background:#fef2f2; border:1px solid #fecaca; color:#991b1b;'
+            };
+            el.style.cssText = (estilos[tipo] || estilos.loading) + 'display:block; padding:9px 12px; border-radius:8px; font-size:0.79rem; line-height:1.5;';
+            el.innerHTML = html;
+        }
+
+        function _dcGuardar() {
+            if (typeof saveDataToDisk === 'function') saveDataToDisk();
+            else if (typeof guardarCambiosGlobal === 'function') guardarCambiosGlobal();
+            else if (typeof markAppDirty === 'function') { markAppDirty(); if (typeof save === 'function') save(); }
+        }
+
+        window.dcSubirDocumento = async function(causaId, tipo, files) {
+            if (files?.length) _dcProcesarArchivos(causaId, tipo, Array.from(files));
+        };
+
         window.dcVerDocumento = function(causaId, tipo, idx) {
             const cfg   = _DOCS_CONFIG[tipo];
             const causa = DB.causas.find(c => c.id === causaId);
@@ -846,7 +1041,6 @@
                 </div>`;
             }
 
-            // Reusar modal genérico si existe, sino crear uno temporal
             let vm = document.getElementById('modal-doc-viewer');
             if (!vm) {
                 vm = document.createElement('div');
@@ -867,7 +1061,6 @@
             vm.style.display = 'flex';
         };
 
-        // Elimina documento con confirmación
         window.dcEliminarDocumento = function(causaId, tipo, idx) {
             if (!confirm('¿Eliminar este documento? Esta acción no se puede deshacer.')) return;
             const cfg   = _DOCS_CONFIG[tipo];
@@ -879,7 +1072,6 @@
             dcRenderDocs(causaId, tipo);
         };
 
-        // ── Helpers internos ──────────────────────────────────────────
         function _fileToBase64(file) {
             return new Promise((res, rej) => {
                 const r = new FileReader();
@@ -909,3 +1101,293 @@
         // ─── 5. BÚSQUEDA GLOBAL ──────────────────────────────────────────────
         let busqFiltroActual = 'todo';
 
+        // ════════════════════════════════════════════════════════
+        // TAB PROCESO — Instancias + Recursos + Prescripción
+        // ════════════════════════════════════════════════════════
+        function dcRenderProceso(causaId) {
+            const causa = DB.causas.find(c => c.id === causaId);
+            const el = document.getElementById('dcpanel-proceso');
+            if (!causa || !el) return;
+
+            if (!causa.instancias)   causa.instancias = [];
+            if (!causa.recursos)     causa.recursos = [];
+            if (!causa.prescripcion) causa.prescripcion = {};
+
+            const instanciaActual = causa.instancia || 'Primera';
+            const instanciaColor = {
+                'Primera':        '#2563eb',
+                'Segunda':        '#7c3aed',
+                'Corte Suprema':  '#dc2626',
+                'Finalizada':     '#059669'
+            };
+
+            el.innerHTML = `
+            <div style="padding:16px; display:flex; flex-direction:column; gap:16px;">
+
+                <!-- ── INSTANCIA ── -->
+                <div style="background:var(--bg-card,#fff); border:1px solid var(--border); border-radius:10px; padding:16px;">
+                    <div style="font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin-bottom:12px;">
+                        <i class="fas fa-sitemap" style="color:#2563eb;"></i> Instancia Actual
+                    </div>
+                    <div style="display:flex; gap:0; margin-bottom:16px; position:relative;">
+                        ${['Primera','Segunda','Corte Suprema'].map((inst, i) => {
+                            const activa = inst === instanciaActual;
+                            const pasada = ['Primera','Segunda','Corte Suprema'].indexOf(instanciaActual) > i;
+                            const color = instanciaColor[inst] || '#64748b';
+                            return `
+                            <div style="flex:1; text-align:center; position:relative;">
+                                <div style="width:28px; height:28px; border-radius:50%; margin:0 auto 6px;
+                                    background:${activa ? color : pasada ? color+'40' : '#f1f5f9'};
+                                    border:2px solid ${activa || pasada ? color : '#cbd5e1'};
+                                    display:flex; align-items:center; justify-content:center;
+                                    font-size:0.65rem; color:${activa ? '#fff' : pasada ? color : '#94a3b8'};
+                                    font-weight:700; cursor:pointer; transition:all 0.2s;"
+                                    onclick="dcCambiarInstancia('${causaId}','${inst}')"
+                                    title="Cambiar a ${inst} Instancia">
+                                    ${activa ? '<i class="fas fa-check" style="font-size:0.6rem;"></i>' : i+1}
+                                </div>
+                                <div style="font-size:0.7rem; font-weight:${activa ? '700' : '500'};
+                                    color:${activa ? color : '#94a3b8'};">${inst}</div>
+                                ${i < 2 ? `<div style="position:absolute; top:14px; left:50%; right:-50%;
+                                    height:2px; background:${pasada ? color+'60' : '#e2e8f0'}; z-index:0;"></div>` : ''}
+                            </div>`;
+                        }).join('')}
+                    </div>
+                    ${causa.instancias.length ? `
+                    <div style="margin-top:8px;">
+                        <div style="font-size:0.68rem; color:#94a3b8; font-weight:700; text-transform:uppercase; margin-bottom:6px;">Historial</div>
+                        ${causa.instancias.map(inst => `
+                        <div style="display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid #f1f5f9; font-size:0.78rem;">
+                            <span style="background:${instanciaColor[inst.instancia]||'#64748b'}18;
+                                color:${instanciaColor[inst.instancia]||'#64748b'};
+                                padding:1px 8px; border-radius:10px; font-weight:600; font-size:0.68rem;">${inst.instancia}</span>
+                            <span style="flex:1; color:#475569;">${escHtml(inst.tribunal || '—')}</span>
+                            <span style="color:#94a3b8; font-size:0.68rem; font-family:monospace;">${inst.fecha ? new Date(inst.fecha).toLocaleDateString('es-CL') : '—'}</span>
+                        </div>`).join('')}
+                    </div>` : ''}
+                    <button onclick="dcAgregarInstancia('${causaId}')"
+                        style="margin-top:12px; padding:6px 14px; border:1px dashed #cbd5e1; border-radius:8px;
+                               background:transparent; color:#64748b; font-size:0.78rem; cursor:pointer; width:100%;">
+                        <i class="fas fa-plus"></i> Registrar cambio de instancia
+                    </button>
+                </div>
+
+                <!-- ── RECURSOS ── -->
+                <div style="background:var(--bg-card,#fff); border:1px solid var(--border); border-radius:10px; padding:16px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <div style="font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#64748b;">
+                            <i class="fas fa-undo" style="color:#7c3aed;"></i> Recursos Procesales
+                            <span style="background:#f1f5f9; color:#475569; padding:1px 7px; border-radius:10px; margin-left:6px;">${causa.recursos.length}</span>
+                        </div>
+                        <button onclick="dcAgregarRecurso('${causaId}')"
+                            style="padding:5px 12px; border:none; border-radius:7px; background:#7c3aed; color:#fff;
+                                   font-size:0.75rem; cursor:pointer; font-weight:600;">
+                            <i class="fas fa-plus"></i> Nuevo
+                        </button>
+                    </div>
+                    ${causa.recursos.length === 0
+                        ? `<div style="text-align:center; padding:20px; color:#94a3b8; font-size:0.8rem;">
+                              <i class="fas fa-undo" style="font-size:1.5rem; opacity:0.3; display:block; margin-bottom:6px;"></i>
+                              Sin recursos interpuestos.
+                           </div>`
+                        : causa.recursos.map((r, i) => {
+                            const estadoColor = r.estado === 'Acogido' ? '#059669' : r.estado === 'Rechazado' ? '#dc2626' : '#d97706';
+                            return `
+                            <div style="padding:10px 12px; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:8px; border-left:3px solid #7c3aed;">
+                                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                                    <div>
+                                        <div style="font-weight:600; font-size:0.82rem;">${escHtml(r.tipo)}</div>
+                                        <div style="font-size:0.7rem; color:#64748b; margin-top:2px;">
+                                            ${escHtml(r.tribunal || '—')} · ${r.fecha ? new Date(r.fecha).toLocaleDateString('es-CL') : '—'}
+                                        </div>
+                                        ${r.observaciones ? `<div style="font-size:0.72rem; color:#94a3b8; margin-top:3px; font-style:italic;">${escHtml(r.observaciones)}</div>` : ''}
+                                    </div>
+                                    <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                                        <span style="font-size:0.68rem; background:${estadoColor}18; color:${estadoColor};
+                                            padding:2px 8px; border-radius:10px; font-weight:600;">${escHtml(r.estado || 'Pendiente')}</span>
+                                        <button onclick="dcEliminarRecurso('${causaId}',${i})"
+                                            style="background:transparent; border:none; color:#dc2626; cursor:pointer; font-size:0.75rem;">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>`;
+                        }).join('')
+                    }
+                </div>
+
+                <!-- ── PRESCRIPCIÓN ── -->
+                <div style="background:var(--bg-card,#fff); border:1px solid var(--border); border-radius:10px; padding:16px;">
+                    <div style="font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin-bottom:12px;">
+                        <i class="fas fa-hourglass-half" style="color:#d97706;"></i> Prescripción
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+                        <div>
+                            <label style="font-size:0.72rem; color:#64748b; font-weight:600; display:block; margin-bottom:4px;">Fecha de prescripción</label>
+                            <input type="date" id="dc-presc-fecha-${causaId}"
+                                value="${causa.prescripcion.fecha || ''}"
+                                onchange="dcGuardarPrescripcion('${causaId}')"
+                                style="width:100%; padding:7px 10px; border:1px solid #e2e8f0; border-radius:7px;
+                                       font-size:0.8rem; background:var(--bg-2,#f8fafc); box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="font-size:0.72rem; color:#64748b; font-weight:600; display:block; margin-bottom:4px;">Tipo de prescripción</label>
+                            <select id="dc-presc-tipo-${causaId}"
+                                onchange="dcGuardarPrescripcion('${causaId}')"
+                                style="width:100%; padding:7px; border:1px solid #e2e8f0; border-radius:7px;
+                                       font-size:0.78rem; background:var(--bg-2,#f8fafc); box-sizing:border-box;">
+                                <option value="">-- Seleccionar --</option>
+                                <option ${causa.prescripcion.tipo === 'Extintiva' ? 'selected' : ''}>Extintiva</option>
+                                <option ${causa.prescripcion.tipo === 'Adquisitiva' ? 'selected' : ''}>Adquisitiva</option>
+                                <option ${causa.prescripcion.tipo === 'Acción penal' ? 'selected' : ''}>Acción penal</option>
+                                <option ${causa.prescripcion.tipo === 'Acción civil' ? 'selected' : ''}>Acción civil</option>
+                            </select>
+                        </div>
+                    </div>
+                    <textarea id="dc-presc-obs-${causaId}"
+                        placeholder="Observaciones sobre la prescripción..."
+                        onchange="dcGuardarPrescripcion('${causaId}')"
+                        style="width:100%; padding:8px 10px; border:1px solid #e2e8f0; border-radius:7px;
+                               font-size:0.78rem; background:var(--bg-2,#f8fafc); resize:vertical;
+                               min-height:60px; box-sizing:border-box; font-family:inherit;"
+                    >${escHtml(causa.prescripcion.observaciones || '')}</textarea>
+                    ${causa.prescripcion.fecha ? (() => {
+                        const venc = new Date(causa.prescripcion.fecha + 'T12:00:00');
+                        const hoy = new Date(); hoy.setHours(0,0,0,0);
+                        const dias = Math.ceil((venc - hoy) / 86400000);
+                        const color = dias < 0 ? '#dc2626' : dias <= 30 ? '#d97706' : '#059669';
+                        const msg = dias < 0 ? `Vencida hace ${Math.abs(dias)} días` : dias === 0 ? 'Vence hoy' : `Faltan ${dias} días`;
+                        return `<div style="margin-top:10px; padding:8px 12px; background:${color}10;
+                            border:1px solid ${color}30; border-radius:8px; font-size:0.78rem; color:${color}; font-weight:600;">
+                            <i class="fas fa-${dias < 0 ? 'exclamation-circle' : dias <= 30 ? 'clock' : 'check-circle'}"></i> ${msg}
+                        </div>`;
+                    })() : ''}
+                </div>
+            </div>`;
+        }
+
+        window.dcCambiarInstancia = function(causaId, nuevaInstancia) {
+            const causa = DB.causas.find(c => c.id === causaId);
+            if (!causa) return;
+            if (causa.instancia === nuevaInstancia) return;
+            if (!confirm(`¿Cambiar instancia a "${nuevaInstancia}"?`)) return;
+            if (!causa.instancias) causa.instancias = [];
+            causa.instancias.push({
+                instancia: nuevaInstancia,
+                tribunal: causa.juzgado || '',
+                fecha: new Date().toISOString()
+            });
+            causa.instancia = nuevaInstancia;
+            if (typeof markAppDirty === 'function') markAppDirty();
+            _dcGuardar();
+            if (typeof registrarEvento === 'function') registrarEvento(`Instancia actualizada: ${nuevaInstancia} — ${causa.caratula}`);
+            dcRenderProceso(causaId);
+        };
+
+        window.dcAgregarInstancia = function(causaId) {
+            const causa = DB.causas.find(c => c.id === causaId);
+            if (!causa) return;
+            migAbrir({
+                titulo: '<i class="fas fa-sitemap"></i> Registrar cambio de instancia',
+                btnOk: 'Guardar',
+                campos: [
+                    { id: 'mig-inst', label: 'Instancia', valor: '', tipo: 'select',
+                      opciones: ['Primera','Segunda','Corte Suprema'], requerido: true },
+                    { id: 'mig-trib', label: 'Tribunal', valor: causa.juzgado || '', placeholder: 'Ej: Corte de Apelaciones de Santiago' },
+                    { id: 'mig-fecha', label: 'Fecha', valor: new Date().toISOString().split('T')[0], tipo: 'date' }
+                ],
+                onOk: (vals) => {
+                    if (!causa.instancias) causa.instancias = [];
+                    causa.instancias.push({
+                        instancia: vals['mig-inst'],
+                        tribunal: vals['mig-trib'],
+                        fecha: vals['mig-fecha']
+                    });
+                    causa.instancia = vals['mig-inst'];
+                    if (typeof markAppDirty === 'function') markAppDirty();
+                    _dcGuardar();
+                    dcRenderProceso(causaId);
+                    abrirDetalleCausa(causaId);
+                    setTimeout(() => dcCambiarTab('proceso', causaId), 50);
+                }
+            });
+        };
+
+        window.dcAgregarRecurso = function(causaId) {
+            const causa = DB.causas.find(c => c.id === causaId);
+            if (!causa) return;
+            migAbrir({
+                titulo: '<i class="fas fa-undo"></i> Interponer Recurso',
+                btnOk: 'Registrar',
+                campos: [
+                    { id: 'mig-rec-tipo', label: 'Tipo de recurso', tipo: 'select', requerido: true,
+                      opciones: ['Apelación','Casación en la Forma','Casación en el Fondo','Nulidad','Reposición','Aclaración','Queja','Amparo'] },
+                    { id: 'mig-rec-trib', label: 'Tribunal Superior', placeholder: 'Ej: Corte de Apelaciones de Santiago' },
+                    { id: 'mig-rec-fecha', label: 'Fecha de interposición', tipo: 'date', valor: new Date().toISOString().split('T')[0] },
+                    { id: 'mig-rec-estado', label: 'Estado', tipo: 'select',
+                      opciones: ['Pendiente','En tramitación','Acogido','Rechazado'] },
+                    { id: 'mig-rec-obs', label: 'Observaciones', placeholder: 'Fundamentos del recurso...' }
+                ],
+                onOk: (vals) => {
+                    if (!causa.recursos) causa.recursos = [];
+                    causa.recursos.push({
+                        tipo:          vals['mig-rec-tipo'],
+                        tribunal:      vals['mig-rec-trib'],
+                        fecha:         vals['mig-rec-fecha'],
+                        estado:        vals['mig-rec-estado'] || 'Pendiente',
+                        observaciones: vals['mig-rec-obs']
+                    });
+                    if (typeof markAppDirty === 'function') markAppDirty();
+                    _dcGuardar();
+                    if (typeof registrarEvento === 'function') registrarEvento(`Recurso registrado: ${vals['mig-rec-tipo']} — ${causa.caratula}`);
+                    dcRenderProceso(causaId);
+                    abrirDetalleCausa(causaId);
+                    setTimeout(() => dcCambiarTab('proceso', causaId), 50);
+                }
+            });
+        };
+
+        window.dcEliminarRecurso = function(causaId, idx) {
+            if (!confirm('¿Eliminar este recurso?')) return;
+            const causa = DB.causas.find(c => c.id === causaId);
+            if (!causa?.recursos) return;
+            causa.recursos.splice(idx, 1);
+            if (typeof markAppDirty === 'function') markAppDirty();
+            _dcGuardar();
+            dcRenderProceso(causaId);
+        };
+
+        window.dcGuardarPrescripcion = function(causaId) {
+            const causa = DB.causas.find(c => c.id === causaId);
+            if (!causa) return;
+            if (!causa.prescripcion) causa.prescripcion = {};
+            causa.prescripcion.fecha        = document.getElementById(`dc-presc-fecha-${causaId}`)?.value || null;
+            causa.prescripcion.tipo         = document.getElementById(`dc-presc-tipo-${causaId}`)?.value || null;
+            causa.prescripcion.observaciones = document.getElementById(`dc-presc-obs-${causaId}`)?.value || '';
+            if (typeof markAppDirty === 'function') markAppDirty();
+            _dcGuardar();
+            dcRenderProceso(causaId);
+        };
+
+        // ════════════════════════════════════════════════════════
+        // ALIASES DE COMPATIBILIDAD
+        // Exponer funciones clave a window para que patches.js pueda sobreescribirlas
+        // ════════════════════════════════════════════════════════
+        window.abrirDetalleCausa  = abrirDetalleCausa;
+        window.viewCausa          = abrirDetalleCausa;
+        window.verCausa           = abrirDetalleCausa;
+        window.verDetalleCausa    = abrirDetalleCausa;
+        window.openCausa          = abrirDetalleCausa;
+        window.goCausa            = abrirDetalleCausa;
+        window.detalleCausa       = abrirDetalleCausa;
+        // cerrarModal y abrirModal expuestos para que patches.js los pueda sobreescribir
+        window.cerrarModal        = cerrarModal;
+        window.abrirModal         = abrirModal;
+        window.renderDetalleCausa = function(causaId) {
+            const el = document.getElementById('detalle-causa-content');
+            if (!causaId) {
+                if (el) el.innerHTML = '<div class="empty-state card"><i class="fas fa-gavel"></i><p>Seleccione una causa.</p></div>';
+                return;
+            }
+            abrirDetalleCausa(causaId);
+        };
