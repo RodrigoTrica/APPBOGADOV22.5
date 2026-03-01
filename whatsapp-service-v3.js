@@ -22,9 +22,10 @@ try {
     console.warn('[WhatsApp] Instalar: npm install whatsapp-web.js qrcode node-cron');
 }
 
-let waClient = null;
-let waReady  = false;
-let mainWin  = null;
+let waClient        = null;
+let waReady         = false;
+let mainWin         = null;
+let _fueReconexionAuto = false;  // true si initWhatsApp detectó sesión previa en disco
 
 // ── Verificación de seguridad de Electron (#5) ─────────────────
 /**
@@ -97,6 +98,14 @@ function initWhatsApp(browserWindow) {
     // Verificar seguridad Electron (#5)
     verificarSeguridadElectron(browserWindow);
 
+    // Detectar si hay sesión previa para no mostrar modal al reconectar
+    try {
+        const sessionPath = require('path').join(
+            require('electron').app.getPath('userData'), '.wa-session'
+        );
+        _fueReconexionAuto = require('fs').existsSync(sessionPath);
+    } catch(_) { _fueReconexionAuto = false; }
+
     waClient = new Client({
         authStrategy: new LocalAuth({
             dataPath: require('path').join(
@@ -125,7 +134,19 @@ function initWhatsApp(browserWindow) {
     waClient.on('ready', () => {
         waReady = true;
         waLogger.logOk('cliente-listo', {});
-        mainWin?.webContents.send('whatsapp:ready');
+        if (_fueReconexionAuto) {
+            // Primero reconectado-auto (activa la flag en el renderer),
+            // luego ready (que ya no mostrará el modal)
+            mainWin?.webContents.send('whatsapp:reconectado-auto', { auto: true });
+            mainWin?.webContents.send('whatsapp:ready', { auto: true });
+        } else {
+            mainWin?.webContents.send('whatsapp:ready', { auto: false });
+        }
+        _fueReconexionAuto = false;
+    });
+
+    waClient.on('loading_screen', (percent) => {
+        mainWin?.webContents.send('whatsapp:cargando', { percent });
     });
 
     waClient.on('disconnected', (reason) => {
@@ -233,28 +254,86 @@ function formatearResumen(resumen, config) {
 }
 
 // ── Schedulers ─────────────────────────────────────────────────
-function iniciarSchedulers(config) {
+function iniciarSchedulers(configOrFn) {
+    // Acepta objeto fijo o función que devuelve config actualizada
+    const getConf = typeof configOrFn === 'function' ? configOrFn : () => configOrFn;
+
     cron.schedule('0 8 * * *', async () => {
+        const config = getConf();
+        if (!config.activo) return;   // respetar checkbox en tiempo real
         waLogger.logInfo('scheduler-resumen-diario', {});
         await _ejecutarResumen(config);
-    }, { timezone: config.timezone || 'America/Santiago' });
+    }, { timezone: 'America/Santiago' });
 
     cron.schedule('0 * * * *', async () => {
+        const config = getConf();
+        if (!config.activo) return;
         await _ejecutarCriticos(config);
-    }, { timezone: config.timezone || 'America/Santiago' });
+    }, { timezone: 'America/Santiago' });
 
-    waLogger.logInfo('schedulers-iniciados', { timezone: config.timezone });
+    waLogger.logInfo('schedulers-iniciados', {});
 }
 
 async function _ejecutarResumen(config) {
-    if (!waReady || !config.numeroDestino) return;
+    if (!waReady) return;
+    // Soporte para lista de destinatarios (nuevo) y fallback a numeroDestino (legacy)
+    const destinatarios = _getDestinatarios(config);
+    if (destinatarios.length === 0) return;
     try {
-        const resumen = alertService.getResumenParaWhatsApp(); // una lectura
+        const resumen = alertService.getResumenParaWhatsApp(); // una sola lectura
         const mensaje = formatearResumen(resumen, config);
-        await enviarMensaje(config.numeroDestino, mensaje, 'resumen-diario');
+        for (const dest of destinatarios) {
+            try {
+                await enviarMensaje(dest.numero, mensaje, 'resumen-diario');
+            } catch(e) {
+                waLogger.logError('resumen-diario-error', { numero: dest.numero, error: e.message });
+            }
+        }
     } catch(e) {
         waLogger.logError('resumen-diario-error', { error: e.message });
     }
+}
+
+/**
+ * Retorna la lista efectiva de destinatarios para el scheduler 8AM.
+ *
+ * - Principal (destinoNumero / numeroDestino): SIEMPRE incluido si está configurado.
+ * - Secundarios (config.destinatarios[]): solo los que tienen autoEnvio !== false.
+ * - Legacy (numeroDestino sin destinoNumero): compatibilidad hacia atrás.
+ */
+function _getDestinatarios(config) {
+    const lista = [];
+
+    // Principal
+    const numPrincipal = config.destinoNumero || config.numeroDestino || '';
+    if (numPrincipal && validarNumero(numPrincipal).ok) {
+        lista.push({
+            nombre: config.destinoNombre || config.nombreAbogado || '',
+            numero: numPrincipal,
+            tipo: 'principal'
+        });
+    }
+
+    // Secundarios con autoEnvio activo
+    if (Array.isArray(config.destinatarios)) {
+        for (const d of config.destinatarios) {
+            if (!d.numero || !validarNumero(d.numero).ok) continue;
+            if (d.numero === numPrincipal) continue;          // evitar duplicado
+            if (d.autoEnvio === false) continue;              // pausado por el usuario
+            lista.push({ nombre: d.nombre || '', numero: d.numero, tipo: 'secundario' });
+        }
+    }
+
+    return lista;
+}
+
+/**
+ * Solo el principal (para envíos manuales desde botón "Enviar resumen ahora").
+ */
+function _getPrincipal(config) {
+    const num = config.destinoNumero || config.numeroDestino || '';
+    if (!num || !validarNumero(num).ok) return null;
+    return { nombre: config.destinoNombre || config.nombreAbogado || '', numero: num };
 }
 
 /**
@@ -263,7 +342,9 @@ async function _ejecutarResumen(config) {
  * Ahora solo llama a getResumenParaWhatsApp() y extrae críticas desde ahí.
  */
 async function _ejecutarCriticos(config) {
-    if (!waReady || !config.numeroDestino) return;
+    if (!waReady) return;
+    const destinatarios = _getDestinatarios(config);
+    if (destinatarios.length === 0) return;
     try {
         // UNA sola lectura que ya incluye críticas enriquecidas
         const resumen  = alertService.getResumenParaWhatsApp();
@@ -282,7 +363,10 @@ async function _ejecutarCriticos(config) {
         });
         msg += `_Requiere acción inmediata – LEXIUM_`;
 
-        await enviarMensaje(config.numeroDestino, msg, 'alerta-critica');
+        const destinatarios = _getDestinatarios(config);
+        for (const dest of destinatarios) {
+            try { await enviarMensaje(dest.numero, msg, 'alerta-critica'); } catch(_) {}
+        }
         criticas.forEach(a => alertService.marcarAlertaNotificada(a.id));
     } catch(e) {
         waLogger.logError('criticos-error', { error: e.message });
@@ -291,22 +375,75 @@ async function _ejecutarCriticos(config) {
 
 // ── IPC Handlers ───────────────────────────────────────────────
 function registrarHandlers(getConfig) {
-    ipcMain.handle('whatsapp:estado', () => ({ conectado: waReady }));
+    ipcMain.handle('whatsapp:estado', () => {
+        const cfg = getConfig();
+        return {
+            conectado:      waReady,
+            // Sesión activa
+            sesionNombre:   cfg.sesionNombre   || '',
+            sesionNumero:   cfg.sesionNumero   || '',
+            sesionDesde:    cfg.sesionDesde    || null,
+            // Número principal
+            destinoNombre:  cfg.destinoNombre  || cfg.nombreAbogado  || '',
+            destinoNumero:  cfg.destinoNumero  || cfg.numeroDestino  || '',
+            // Legacy
+            numeroDestino:  cfg.numeroDestino  || cfg.destinoNumero  || '',
+            nombreAbogado:  cfg.nombreAbogado  || cfg.destinoNombre  || '',
+            // Secundarios
+            destinatarios:  Array.isArray(cfg.destinatarios) ? cfg.destinatarios : [],
+            // Checkbox alertas automáticas
+            activo:         !!cfg.activo,
+        };
+    });
 
+    // Enviar resumen a TODOS los destinatarios activos (scheduler 8AM manual)
     ipcMain.handle('whatsapp:enviar-resumen', async () => {
         const config = getConfig();
-        if (!config.numeroDestino) return { error: 'Número no configurado' };
-        try { await _ejecutarResumen(config); return { ok: true }; }
+        const destinatarios = _getDestinatarios(config);
+        if (destinatarios.length === 0) return { error: 'Sin destinatarios configurados' };
+        try { await _ejecutarResumen(config); return { ok: true, destinatarios: destinatarios.length }; }
         catch(e) { return { error: e.message }; }
     });
 
+    // Enviar resumen solo al PRINCIPAL (botón "Enviar resumen ahora")
+    ipcMain.handle('whatsapp:enviar-resumen-principal', async () => {
+        const config = getConfig();
+        const principal = _getPrincipal(config);
+        if (!principal) return { error: 'Sin número principal configurado' };
+        try {
+            const resumen = alertService.getResumenParaWhatsApp();
+            const mensaje = formatearResumen(resumen, config);
+            await enviarMensaje(principal.numero, mensaje, 'resumen-principal');
+            return { ok: true, destinatario: principal.nombre || principal.numero };
+        } catch(e) { return { error: e.message }; }
+    });
+
+    // Enviar alerta/mensaje a TODOS los destinatarios activos
     ipcMain.handle('whatsapp:enviar-alerta', async (_e, mensaje) => {
         const config = getConfig();
-        if (!config.numeroDestino) return { error: 'Número no configurado' };
+        const destinatarios = _getDestinatarios(config);
+        if (destinatarios.length === 0) return { error: 'Sin destinatarios configurados' };
         const v = validarMensaje(mensaje);
         if (!v.ok) return { error: v.error };
-        try { await enviarMensaje(config.numeroDestino, mensaje, 'manual'); return { ok: true }; }
+        try {
+            for (const dest of destinatarios) {
+                try { await enviarMensaje(dest.numero, mensaje, 'manual'); } catch(_) {}
+            }
+            return { ok: true, destinatarios: destinatarios.length };
+        }
         catch(e) { return { error: e.message }; }
+    });
+
+    // Enviar mensaje a UN número específico (secundarios on-demand)
+    ipcMain.handle('whatsapp:enviar-alerta-a', async (_e, numero, mensaje) => {
+        const v1 = validarNumero(numero);
+        if (!v1.ok) return { error: v1.error };
+        const v2 = validarMensaje(mensaje);
+        if (!v2.ok) return { error: v2.error };
+        try {
+            await enviarMensaje(v1.numero, mensaje, 'manual-individual');
+            return { ok: true };
+        } catch(e) { return { error: e.message }; }
     });
 
     ipcMain.handle('whatsapp:desconectar', async () => {
